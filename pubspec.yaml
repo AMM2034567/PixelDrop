@@ -12,7 +12,6 @@ dependencies:
   # Core video processing (maintained active fork)
   ffmpeg_kit_flutter_new: any
   # Background processing & keep awake
-  wakelock_plus: ^1.2.8
   flutter_local_notifications: ^17.2.2
   # UI & File Operations
   file_picker: ^8.0.0

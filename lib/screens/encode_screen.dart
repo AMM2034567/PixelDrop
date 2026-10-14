@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
+import '../services/wakelock_helper.dart';
 import '../services/pixel_encoder.dart';
 import '../services/storage_helper.dart';
 
@@ -45,7 +45,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
       _result = null;
     });
 
-    await WakelockPlus.enable();
+    await WakelockHelper.enable();
 
     try {
       final res = await PixelEncoderService.encodeFileToVideo(
@@ -100,7 +100,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         ),
       );
     } finally {
-      await WakelockPlus.disable();
+      await WakelockHelper.disable();
     }
   }
 
