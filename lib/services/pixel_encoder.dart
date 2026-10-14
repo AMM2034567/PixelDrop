@@ -1,15 +1,35 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit_config.dart';
 import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
+import 'notification_service.dart';
+import 'storage_helper.dart';
 
-class _RenderParams {
+class EncodeResult {
+  final File videoFile;
+  final String filename;
+  final int originalSize;
+  final int videoSize;
+  final String sha256;
+
+  EncodeResult({
+    required this.videoFile,
+    required this.filename,
+    required this.originalSize,
+    required this.videoSize,
+    required this.sha256,
+  });
+}
+
+class _RenderIsolateArgs {
+  final SendPort sendPort;
   final List<Uint8List> chunks;
   final int totalChunks;
   final int frameCapacity;
@@ -18,7 +38,8 @@ class _RenderParams {
   final int holdFrames;
   final String framesDirPath;
 
-  _RenderParams({
+  _RenderIsolateArgs({
+    required this.sendPort,
     required this.chunks,
     required this.totalChunks,
     required this.frameCapacity,
@@ -29,33 +50,30 @@ class _RenderParams {
   });
 }
 
-/// Background Isolate worker for fast frame generation.
-/// Uses 3-channel RGB so black is (0,0,0) and white is (255,255,255).
-/// Generates small grid-size images (e.g. 320x180) in milliseconds;
-/// FFmpeg will scale them up to 1280x720 in hardware with flags=neighbor.
-void _renderFramesWorker(_RenderParams params) {
+/// Background Isolate worker for fast frame generation with progress reporting.
+void _renderFramesIsolateWorker(_RenderIsolateArgs args) {
   int frameIndex = 1;
 
-  for (int idx = 0; idx < params.totalChunks; idx++) {
-    final chunk = params.chunks[idx];
+  for (int idx = 0; idx < args.totalChunks; idx++) {
+    final chunk = args.chunks[idx];
     final frameRaw = PixelProtocol.buildFrame(
-      params.totalChunks,
+      args.totalChunks,
       idx,
       chunk,
-      params.frameCapacity,
+      args.frameCapacity,
     );
     final bits = PixelProtocol.unpackBits(frameRaw);
 
     // 3-channel RGB image (320x180 or 160x90)
     final smallImg = img.Image(
-      width: params.gridW,
-      height: params.gridH,
+      width: args.gridW,
+      height: args.gridH,
       numChannels: 3,
     );
 
     int bitIdx = 0;
-    for (int y = 0; y < params.gridH; y++) {
-      for (int x = 0; x < params.gridW; x++) {
+    for (int y = 0; y < args.gridH; y++) {
+      for (int x = 0; x < args.gridW; x++) {
         final val = bits[bitIdx] == 1 ? 255 : 0;
         smallImg.setPixelRgb(x, y, val, val, val);
         bitIdx++;
@@ -64,20 +82,28 @@ void _renderFramesWorker(_RenderParams params) {
 
     final pngBytes = img.encodePng(smallImg);
 
-    for (int h = 0; h < params.holdFrames; h++) {
+    for (int h = 0; h < args.holdFrames; h++) {
       final framePath =
-          '${params.framesDirPath}/frame_${frameIndex.toString().padLeft(6, '0')}.png';
+          '${args.framesDirPath}/frame_${frameIndex.toString().padLeft(6, '0')}.png';
       File(framePath).writeAsBytesSync(pngBytes, flush: true);
       frameIndex++;
     }
+
+    // Send progress every 10 chunks or on last chunk
+    if (idx % 10 == 0 || idx == args.totalChunks - 1) {
+      args.sendPort.send(idx + 1);
+    }
   }
+
+  // Done signal
+  args.sendPort.send(null);
 }
 
 class PixelEncoderService {
   static const int width = 1280;
   static const int height = 720;
 
-  static Future<File> encodeFileToVideo({
+  static Future<EncodeResult> encodeFileToVideo({
     required File inputFile,
     int blockSize = 4,
     int fps = 10,
@@ -90,7 +116,7 @@ class PixelEncoderService {
     final origSize = rawBytes.length;
     final fileSha256 = sha256.convert(rawBytes).toString();
 
-    onProgress?.call(0.05, '正在自适应 Gzip 压缩...');
+    onProgress?.call(0.02, '正在自适应 Gzip 压缩...');
 
     // 1. Gzip compression
     final compressedBytes = Uint8List.fromList(GZipEncoder().encode(rawBytes)!);
@@ -125,18 +151,19 @@ class PixelEncoderService {
     }
     final totalChunks = chunks.length;
 
-    // 4. Render frames in background Isolate (keeps UI 100% fluid)
+    // 4. Render frames in background Isolate with real-time progress
     final tempDir = await getTemporaryDirectory();
-    final framesDir = Directory(
-      '${tempDir.path}/pixel_enc_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    final sessionTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final framesDir = Directory('${tempDir.path}/pixel_enc_$sessionTimestamp');
     await framesDir.create(recursive: true);
 
-    onProgress?.call(0.2, '后台快速生成点阵帧 ($totalChunks 分块)...');
+    onProgress?.call(0.05, '正在生成点阵帧 (共 $totalChunks 分块)...');
 
-    await compute(
-      _renderFramesWorker,
-      _RenderParams(
+    final receivePort = ReceivePort();
+    await Isolate.spawn(
+      _renderFramesIsolateWorker,
+      _RenderIsolateArgs(
+        sendPort: receivePort.sendPort,
         chunks: chunks,
         totalChunks: totalChunks,
         frameCapacity: frameCapacity,
@@ -147,10 +174,45 @@ class PixelEncoderService {
       ),
     );
 
-    // 5. FFmpeg encode to MP4 with hardware-speed nearest neighbor scaling
-    onProgress?.call(0.65, 'FFmpeg 正在压制 MP4 视频...');
-    final tempOutFile = File('${tempDir.path}/temp_enc_${DateTime.now().millisecondsSinceEpoch}.mp4');
-    final outVideoPath = '${tempDir.path}/${filename}_pixel.mp4';
+    await for (final msg in receivePort) {
+      if (msg is int) {
+        final progressRatio = msg / totalChunks;
+        final currentP = 0.05 + 0.45 * progressRatio;
+        final statusText = '生成点阵帧: $msg / $totalChunks 分块 (${(progressRatio * 100).toInt()}%)';
+        onProgress?.call(currentP, statusText);
+        await NotificationService.showProgress(
+          id: 101,
+          title: 'PixelDrop 正在制作视频...',
+          body: statusText,
+          progress: (currentP * 100).toInt(),
+          maxProgress: 100,
+        );
+      } else if (msg == null) {
+        break;
+      }
+    }
+
+    // 5. FFmpeg encode to MP4 with hardware scaling and real-time statistics
+    onProgress?.call(0.52, 'FFmpeg 正在压制 MP4 视频...');
+    final tempOutFile = File('${tempDir.path}/temp_enc_$sessionTimestamp.mp4');
+
+    final totalTargetFrames = totalChunks * holdFrames;
+    FFmpegKitConfig.enableStatisticsCallback((statistics) {
+      final f = statistics.getVideoFrameNumber();
+      if (f > 0 && totalTargetFrames > 0) {
+        final ratio = (f / totalTargetFrames).clamp(0.0, 1.0);
+        final currentP = 0.52 + 0.45 * ratio;
+        final statusText = 'FFmpeg 硬件压制: $f / $totalTargetFrames 帧 (${(ratio * 100).toInt()}%)';
+        onProgress?.call(currentP, statusText);
+        NotificationService.showProgress(
+          id: 101,
+          title: 'PixelDrop 正在压制视频...',
+          body: statusText,
+          progress: (currentP * 100).toInt(),
+          maxProgress: 100,
+        );
+      }
+    });
 
     final args = [
       '-y',
@@ -176,20 +238,45 @@ class PixelEncoderService {
     ];
 
     final session = await FFmpegKit.executeWithArguments(args);
+    FFmpegKitConfig.enableStatisticsCallback(null);
     final returnCode = await session.getReturnCode();
 
-    // Clean up PNG frames
+    // Clean up temporary PNG frames
     try {
       await framesDir.delete(recursive: true);
     } catch (_) {}
 
     if (ReturnCode.isSuccess(returnCode)) {
-      final finalFile = await tempOutFile.copy(outVideoPath);
+      // 6. Save final video into Download/PixelDrop/Videos
+      final videosDir = await StorageHelper.getVideosDir();
+      String targetPath = '${videosDir.path}/${filename}_pixel.mp4';
+      int collision = 1;
+      final dotIdx = filename.lastIndexOf('.');
+      final base = dotIdx != -1 ? filename.substring(0, dotIdx) : filename;
+      while (await File(targetPath).exists()) {
+        targetPath = '${videosDir.path}/${base}_pixel_$collision.mp4';
+        collision++;
+      }
+
+      final finalSavedVideo = await tempOutFile.copy(targetPath);
       try {
         await tempOutFile.delete();
       } catch (_) {}
+
       onProgress?.call(1.0, '视频生成完毕！');
-      return finalFile;
+      await NotificationService.showComplete(
+        id: 101,
+        title: '🎉 传输视频制作完成！',
+        body: '已保存至 Download/PixelDrop/Videos',
+      );
+
+      return EncodeResult(
+        videoFile: finalSavedVideo,
+        filename: filename,
+        originalSize: origSize,
+        videoSize: finalSavedVideo.lengthSync(),
+        sha256: fileSha256,
+      );
     } else {
       final rawLogs = await session.getLogsAsString() ?? '';
       final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();

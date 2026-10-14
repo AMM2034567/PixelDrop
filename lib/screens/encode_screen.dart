@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/pixel_encoder.dart';
+import '../services/storage_helper.dart';
 
 class EncodeScreen extends StatefulWidget {
   const EncodeScreen({super.key});
@@ -18,14 +21,14 @@ class _EncodeScreenState extends State<EncodeScreen> {
   bool _isEncoding = false;
   double _progress = 0.0;
   String _statusText = '';
-  File? _generatedVideo;
+  EncodeResult? _result;
 
   void _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
     if (result != null && result.files.single.path != null) {
       setState(() {
         _selectedFile = File(result.files.single.path!);
-        _generatedVideo = null;
+        _result = null;
         _progress = 0.0;
         _statusText = '';
       });
@@ -39,11 +42,13 @@ class _EncodeScreenState extends State<EncodeScreen> {
       _isEncoding = true;
       _progress = 0.0;
       _statusText = '准备中...';
-      _generatedVideo = null;
+      _result = null;
     });
 
+    await WakelockPlus.enable();
+
     try {
-      final video = await PixelEncoderService.encodeFileToVideo(
+      final res = await PixelEncoderService.encodeFileToVideo(
         inputFile: _selectedFile!,
         blockSize: _blockSize,
         fps: 10,
@@ -58,14 +63,14 @@ class _EncodeScreenState extends State<EncodeScreen> {
       );
 
       setState(() {
-        _generatedVideo = video;
+        _result = res;
         _isEncoding = false;
         _statusText = '视频制作完成！';
       });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('🎉 纯像素点阵 MP4 视频生成成功！')),
+        const SnackBar(content: Text('🎉 纯像素点阵 MP4 视频生成成功！已存入 Download/PixelDrop/Videos')),
       );
     } catch (e) {
       setState(() {
@@ -94,6 +99,8 @@ class _EncodeScreenState extends State<EncodeScreen> {
           ],
         ),
       );
+    } finally {
+      await WakelockPlus.disable();
     }
   }
 
@@ -191,7 +198,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.movie_creation_outlined),
-            label: Text(_isEncoding ? '正在制作中...' : '开始生成 MP4 传输视频'),
+            label: Text(_isEncoding ? '正在制作中 (支持切后台)...' : '开始生成 MP4 传输视频'),
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -212,7 +219,13 @@ class _EncodeScreenState extends State<EncodeScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(_statusText, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        Expanded(
+                          child: Text(
+                            _statusText,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                         Text('${(_progress * 100).toInt()}%'),
                       ],
                     ),
@@ -225,8 +238,8 @@ class _EncodeScreenState extends State<EncodeScreen> {
             const SizedBox(height: 16),
           ],
 
-          // 5. Result Card
-          if (_generatedVideo != null) ...[
+          // 5. Result Card with SHA-256 and Locate Folder
+          if (_result != null) ...[
             Card(
               color: Colors.green.shade50,
               shape: RoundedRectangleBorder(
@@ -252,26 +265,81 @@ class _EncodeScreenState extends State<EncodeScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text('视频大小: ${_formatBytes(_generatedVideo!.lengthSync())}'),
-                    Text('保存路径: ${_generatedVideo!.path}', style: const TextStyle(fontSize: 12)),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
+                    Text('原文件名: ${_result!.filename}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('原文件大小: ${_formatBytes(_result!.originalSize)}'),
+                    Text('生成视频大小: ${_formatBytes(_result!.videoSize)}'),
+                    const SizedBox(height: 4),
+                    Text(
+                      '保存路径: ${_result!.videoFile.path}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    ),
+                    const Divider(height: 20),
+                    // SHA-256 Display & Copy
+                    Row(
+                      children: [
+                        const Text(
+                          'SHA-256 全局指纹:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: _result!.sha256));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('📋 SHA-256 指纹已复制到剪贴板！')),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('复制', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: SelectableText(
+                        _result!.sha256,
+                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Action Buttons: Open Folder, Share, Preview
                     Row(
                       children: [
                         Expanded(
-                          child: FilledButton.icon(
-                            onPressed: () => Share.shareXFiles([XFile(_generatedVideo!.path)]),
-                            icon: const Icon(Icons.share),
-                            label: const Text('分享给好友'),
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final dir = await StorageHelper.getVideosDir();
+                              await StorageHelper.openDirectory(dir);
+                            },
+                            icon: const Icon(Icons.folder_open),
+                            label: const Text('定位保存目录'),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: () => OpenFilex.open(_generatedVideo!.path),
-                          icon: const Icon(Icons.play_arrow),
-                          label: const Text('预览播放'),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => Share.shareXFiles([XFile(_result!.videoFile.path)]),
+                            icon: const Icon(Icons.share),
+                            label: const Text('分享视频'),
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => OpenFilex.open(_result!.videoFile.path),
+                      icon: const Icon(Icons.play_arrow),
+                      label: const Text('直接播放视频'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(42),
+                      ),
                     ),
                   ],
                 ),

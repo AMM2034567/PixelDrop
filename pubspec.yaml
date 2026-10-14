@@ -1,7 +1,7 @@
 name: pixel_drop
 description: "File to Pixel Video: Convert any file into an MP4 video of pure pixel blocks and restore it with 100% bit-exact integrity."
 publish_to: "none"
-version: 1.0.2+2
+version: 1.0.3+3
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -11,6 +11,9 @@ dependencies:
     sdk: flutter
   # Core video processing (maintained active fork)
   ffmpeg_kit_flutter_new: any
+  # Background processing & keep awake
+  wakelock_plus: ^1.2.8
+  flutter_local_notifications: ^17.2.2
   # UI & File Operations
   file_picker: ^8.0.0
   share_plus: ^9.0.0

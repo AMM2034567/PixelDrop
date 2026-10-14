@@ -1,9 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../services/pixel_decoder.dart';
+import '../services/storage_helper.dart';
 
 class DecodeScreen extends StatefulWidget {
   const DecodeScreen({super.key});
@@ -41,9 +44,11 @@ class _DecodeScreenState extends State<DecodeScreen> {
     setState(() {
       _isDecoding = true;
       _progress = 0.0;
-      _statusText = '准备抽帧...';
+      _statusText = '准备快速解流...';
       _result = null;
     });
+
+    await WakelockPlus.enable();
 
     try {
       final res = await PixelDecoderService.decodeVideoToFile(
@@ -65,7 +70,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('🎉 文件还原并校验成功！')),
+        const SnackBar(content: Text('🎉 文件还原并校验成功！已存入 Download/PixelDrop/Restored')),
       );
     } catch (e) {
       setState(() {
@@ -94,6 +99,8 @@ class _DecodeScreenState extends State<DecodeScreen> {
           ],
         ),
       );
+    } finally {
+      await WakelockPlus.disable();
     }
   }
 
@@ -188,7 +195,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Icon(Icons.restore_page_outlined),
-            label: Text(_isDecoding ? '正在毫秒级逆向解析...' : '开始从视频还原文件'),
+            label: Text(_isDecoding ? '正在毫秒级逆向解析 (支持切后台)...' : '开始从视频还原文件'),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -270,10 +277,45 @@ class _DecodeScreenState extends State<DecodeScreen> {
                     Text('大小: ${_formatBytes(_result!.fileSize)}'),
                     const SizedBox(height: 4),
                     Text(
-                      'SHA-256:\n${_result!.sha256}',
-                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      '保存位置: ${_result!.restoredFile.path}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 8),
+                    // SHA-256 with copy button
+                    Row(
+                      children: [
+                        const Text(
+                          'SHA-256 校验指纹:',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: _result!.sha256));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('📋 SHA-256 指纹已复制到剪贴板！')),
+                            );
+                          },
+                          icon: const Icon(Icons.copy, size: 16),
+                          label: const Text('复制', style: TextStyle(fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green.shade200),
+                      ),
+                      child: SelectableText(
+                        _result!.sha256,
+                        style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Action Buttons: Open File, Locate Folder, Share
                     Row(
                       children: [
                         Expanded(
@@ -284,12 +326,26 @@ class _DecodeScreenState extends State<DecodeScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: () => Share.shareXFiles([XFile(_result!.restoredFile.path)]),
-                          icon: const Icon(Icons.share),
-                          label: const Text('导出 / 分享'),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              final dir = await StorageHelper.getRestoredDir();
+                              await StorageHelper.openDirectory(dir);
+                            },
+                            icon: const Icon(Icons.folder_open),
+                            label: const Text('定位保存目录'),
+                          ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton.icon(
+                      onPressed: () => Share.shareXFiles([XFile(_result!.restoredFile.path)]),
+                      icon: const Icon(Icons.share),
+                      label: const Text('导出 / 分享文件'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(42),
+                      ),
                     ),
                   ],
                 ),
