@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   # Core video processing (maintained active fork)
-  ffmpeg_kit_flutter_new: ^1.6.1
+  ffmpeg_kit_flutter_new: any
   # UI & File Operations
   file_picker: ^8.0.0
   share_plus: ^9.0.0
