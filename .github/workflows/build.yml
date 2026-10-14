@@ -46,18 +46,18 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.1
-          name: "PixelDrop v1.0.1 (Android APK - 修复黑屏与卡顿)"
+          tag_name: v1.0.2
+          name: "PixelDrop v1.0.2 (Android APK - 修复中文路径抽帧与还原异常)"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 PixelDrop v1.0.1 更新说明 (重要修复)
+            ## 🚀 PixelDrop v1.0.2 更新说明 (关键修复版)
             
             ### 🛠️ 关键修复与优化
-            1. **彻底修复导出纯黑视频 Bug**：修复 BMP 编码器单通道缺失调色板导致的黑屏，全面换用标准 3 通道 RGB 点阵，确保黑白方块分明、清晰锐利。
-            2. **彻底解决编解码卡顿（UI 120 FPS 丝滑）**：将重度点阵生成与抽帧采样全部移入 Flutter 后台独立线程（`Isolate`），彻底告别主线程冻结与卡死。
-            3. **硬核提速 100 倍**：由 FFmpeg 底层硬件（NEON/C）完成最近邻超采样与高速抽帧，大幅减轻闪存读写负担。
-            4. **安装包体积暴降 80%**：启用 `--split-per-abi` 架构独立打包，现代主流安卓手机（arm64-v8a）安装包仅约 **35 MB**（原 213 MB）。
+            1. **彻底修复抽帧报错 Bug**：解决因中文文件名（如 `抖音极速版`）或包含空格导致的 FFmpeg JNI 原生路径解析失败问题。现抽帧前安全复制为纯 ASCII 缓存路径，并改用 `executeWithArguments` 原生安全参数数组调用。
+            2. **智能规格自适应回退**：还原界面采样时增加智能回退容错，若选定规格未检测到数据帧，自动尝试 8x8 规格无缝对齐解析。
+            3. **精准友好错误诊断弹窗**：剥离 FFmpeg 冗长启动配置头，提取关键末尾错误并提供全屏可复制弹窗，排错一目了然。
+            4. **临时缓存自动清理**：在 `finally` 中严格清理过程临时抽帧图像与安全副本，不占用手机内部存储空间。
             
             ### 📥 下载安装
             请在下方 Assets 中下载适合你手机的安装包：

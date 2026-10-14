@@ -73,8 +73,26 @@ class _DecodeScreenState extends State<DecodeScreen> {
         _statusText = '还原失败: $e';
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ 还原失败: $e'), backgroundColor: Colors.red),
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red),
+              SizedBox(width: 8),
+              Text('还原失败'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SelectableText(e.toString()),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('关闭'),
+            ),
+          ],
+        ),
       );
     }
   }
@@ -112,7 +130,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                     Text(
                       _selectedVideo == null
                           ? '点击选择待还原的 MP4 视频'
-                          : _selectedVideo!.uri.pathSegments.last,
+                          : Uri.decodeComponent(_selectedVideo!.uri.pathSegments.last),
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),

@@ -106,117 +106,159 @@ class PixelDecoderService {
     Function(double progress, String status)? onProgress,
   }) async {
     final tempDir = await getTemporaryDirectory();
-    final extractDir = Directory(
-      '${tempDir.path}/pixel_dec_${DateTime.now().millisecondsSinceEpoch}',
-    );
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final extractDir = Directory('${tempDir.path}/pixel_dec_$timestamp');
     await extractDir.create(recursive: true);
 
-    onProgress?.call(0.1, 'FFmpeg 正在快速抽帧...');
+    // Safely copy video to an ASCII-named temporary file to avoid JNI/FFmpeg path issues with Unicode / Chinese characters
+    final safeInputFile = File('${tempDir.path}/decode_input_$timestamp.mp4');
 
-    // 1. FFmpeg extract frames as high-speed JPG (-q:v 2)
-    final extractCmd = '-y -i "${videoFile.path}" -q:v 2 "${extractDir.path}/frame_%06d.jpg"';
-    final session = await FFmpegKit.execute(extractCmd);
-    if (!ReturnCode.isSuccess(await session.getReturnCode())) {
-      final logs = await session.getLogsAsString();
-      throw Exception('FFmpeg 视频抽帧失败: $logs');
-    }
-
-    final frameFiles = extractDir.listSync().whereType<File>().toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-
-    final totalFrames = frameFiles.length;
-    if (totalFrames == 0) {
-      throw Exception('未能从视频中提取出有效画面帧');
-    }
-
-    onProgress?.call(0.35, '提取出 $totalFrames 帧，后台并发解析黑白矩阵...');
-
-    final gridW = width ~/ blockSize;
-    final gridH = height ~/ blockSize;
-    final half = blockSize ~/ 2;
-    final framePaths = frameFiles.map((f) => f.path).toList();
-
-    // 2. Sample pixels in background Isolate (100% smooth UI)
-    final scanResult = await compute(
-      _scanFramesWorker,
-      _ScanParams(
-        framePaths: framePaths,
-        blockSize: blockSize,
-        gridW: gridW,
-        gridH: gridH,
-        half: half,
-      ),
-    );
-
-    // Clean up extracted frames
     try {
-      await extractDir.delete(recursive: true);
-    } catch (_) {}
+      onProgress?.call(0.05, '准备视频文件...');
+      await videoFile.copy(safeInputFile.path);
 
-    final totalExpected = scanResult.totalChunks;
-    final collected = scanResult.collectedChunks;
+      onProgress?.call(0.15, 'FFmpeg 正在快速抽帧...');
 
-    if (totalExpected == null || collected.length < totalExpected) {
-      throw Exception(
-        '未能集齐全部数据分块（已收集 ${collected.length}/${totalExpected ?? '?'}）',
+      // 1. FFmpeg extract frames as high-speed JPG (-q:v 2) using executeWithArguments
+      final args = [
+        '-y',
+        '-i',
+        safeInputFile.path,
+        '-q:v',
+        '2',
+        '${extractDir.path}/frame_%06d.jpg',
+      ];
+      final session = await FFmpegKit.executeWithArguments(args);
+      final returnCode = await session.getReturnCode();
+
+      if (!ReturnCode.isSuccess(returnCode)) {
+        final rawLogs = await session.getLogsAsString() ?? '';
+        final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
+        final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
+        throw Exception('FFmpeg 视频抽帧失败 (Code: $returnCode):\n$tailLogs');
+      }
+
+      final frameFiles = extractDir.listSync().whereType<File>().toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+
+      final totalFrames = frameFiles.length;
+      if (totalFrames == 0) {
+        throw Exception('未能从视频中提取出有效画面帧');
+      }
+
+      onProgress?.call(0.4, '提取出 $totalFrames 帧，后台并发解析黑白矩阵...');
+
+      final gridW = width ~/ blockSize;
+      final gridH = height ~/ blockSize;
+      final half = blockSize ~/ 2;
+      final framePaths = frameFiles.map((f) => f.path).toList();
+
+      // 2. Sample pixels in background Isolate (100% smooth UI)
+      var scanResult = await compute(
+        _scanFramesWorker,
+        _ScanParams(
+          framePaths: framePaths,
+          blockSize: blockSize,
+          gridW: gridW,
+          gridH: gridH,
+          half: half,
+        ),
       );
+
+      // Auto-fallback: if user selected 4x4 but no valid frames found, try 8x8
+      if (scanResult.collectedChunks.isEmpty && blockSize == 4) {
+        final altResult = await compute(
+          _scanFramesWorker,
+          _ScanParams(
+            framePaths: framePaths,
+            blockSize: 8,
+            gridW: width ~/ 8,
+            gridH: height ~/ 8,
+            half: 4,
+          ),
+        );
+        if (altResult.collectedChunks.isNotEmpty) {
+          scanResult = altResult;
+        }
+      }
+
+      final totalExpected = scanResult.totalChunks;
+      final collected = scanResult.collectedChunks;
+
+      if (totalExpected == null || collected.length < totalExpected) {
+        throw Exception(
+          '未能集齐全部数据分块（已收集 ${collected.length}/${totalExpected ?? '?'}）',
+        );
+      }
+
+      onProgress?.call(0.85, '正在拼装数据流并进行元数据解包...');
+
+      // 3. Reconstruct full stream
+      final totalLen = collected.values.fold<int>(0, (sum, c) => sum + c.length);
+      final fullStream = Uint8List(totalLen);
+      int currentOffset = 0;
+      for (int i = 0; i < totalExpected; i++) {
+        final chunk = collected[i]!;
+        fullStream.setRange(currentOffset, currentOffset + chunk.length, chunk);
+        currentOffset += chunk.length;
+      }
+
+      // 4. Parse metadata header
+      final meta = PixelProtocol.parseMetaHeader(fullStream);
+
+      onProgress?.call(0.9, '正在解压文件数据...');
+      List<int> restoredBytes;
+      if (meta.useGzip) {
+        restoredBytes = GZipDecoder().decodeBytes(meta.body);
+      } else {
+        restoredBytes = meta.body;
+      }
+
+      // 5. SHA-256 integrity verification
+      onProgress?.call(0.95, '正在比对 SHA-256 全局指纹...');
+      final actualHash = sha256.convert(restoredBytes).toString();
+      final isMatched = actualHash.toLowerCase() == meta.sha256.toLowerCase();
+
+      // 6. Save restored file to application documents dir
+      final appDir = await getApplicationDocumentsDirectory();
+      final outDir = Directory('${appDir.path}/PixelDropRestored');
+      await outDir.create(recursive: true);
+
+      String targetPath = '${outDir.path}/${meta.filename}';
+      int collision = 1;
+      final dotIdx = meta.filename.lastIndexOf('.');
+      final base = dotIdx != -1 ? meta.filename.substring(0, dotIdx) : meta.filename;
+      final ext = dotIdx != -1 ? meta.filename.substring(dotIdx) : '';
+
+      while (await File(targetPath).exists()) {
+        targetPath = '${outDir.path}/${base}_restored_$collision$ext';
+        collision++;
+      }
+
+      final savedFile = File(targetPath);
+      await savedFile.writeAsBytes(restoredBytes, flush: true);
+
+      onProgress?.call(1.0, '还原成功！');
+
+      return DecodeResult(
+        restoredFile: savedFile,
+        filename: meta.filename,
+        fileSize: restoredBytes.length,
+        sha256: actualHash,
+        isSha256Matched: isMatched,
+      );
+    } finally {
+      // Clean up temporary extraction frames and safe input copy
+      try {
+        if (await safeInputFile.exists()) {
+          await safeInputFile.delete();
+        }
+      } catch (_) {}
+      try {
+        if (await extractDir.exists()) {
+          await extractDir.delete(recursive: true);
+        }
+      } catch (_) {}
     }
-
-    onProgress?.call(0.85, '正在拼装数据流并进行元数据解包...');
-
-    // 3. Reconstruct full stream
-    final totalLen = collected.values.fold<int>(0, (sum, c) => sum + c.length);
-    final fullStream = Uint8List(totalLen);
-    int currentOffset = 0;
-    for (int i = 0; i < totalExpected; i++) {
-      final chunk = collected[i]!;
-      fullStream.setRange(currentOffset, currentOffset + chunk.length, chunk);
-      currentOffset += chunk.length;
-    }
-
-    // 4. Parse metadata header
-    final meta = PixelProtocol.parseMetaHeader(fullStream);
-
-    onProgress?.call(0.9, '正在解压文件数据...');
-    List<int> restoredBytes;
-    if (meta.useGzip) {
-      restoredBytes = GZipDecoder().decodeBytes(meta.body);
-    } else {
-      restoredBytes = meta.body;
-    }
-
-    // 5. SHA-256 integrity verification
-    onProgress?.call(0.95, '正在比对 SHA-256 全局指纹...');
-    final actualHash = sha256.convert(restoredBytes).toString();
-    final isMatched = actualHash.toLowerCase() == meta.sha256.toLowerCase();
-
-    // 6. Save restored file to application documents dir
-    final appDir = await getApplicationDocumentsDirectory();
-    final outDir = Directory('${appDir.path}/PixelDropRestored');
-    await outDir.create(recursive: true);
-
-    String targetPath = '${outDir.path}/${meta.filename}';
-    int collision = 1;
-    final dotIdx = meta.filename.lastIndexOf('.');
-    final base = dotIdx != -1 ? meta.filename.substring(0, dotIdx) : meta.filename;
-    final ext = dotIdx != -1 ? meta.filename.substring(dotIdx) : '';
-
-    while (await File(targetPath).exists()) {
-      targetPath = '${outDir.path}/${base}_restored_$collision$ext';
-      collision++;
-    }
-
-    final savedFile = File(targetPath);
-    await savedFile.writeAsBytes(restoredBytes, flush: true);
-
-    onProgress?.call(1.0, '还原成功！');
-
-    return DecodeResult(
-      restoredFile: savedFile,
-      filename: meta.filename,
-      fileSize: restoredBytes.length,
-      sha256: actualHash,
-      isSha256Matched: isMatched,
-    );
   }
 }

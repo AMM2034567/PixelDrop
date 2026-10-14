@@ -86,7 +86,7 @@ class PixelEncoderService {
     Function(double progress, String status)? onProgress,
   }) async {
     final rawBytes = await inputFile.readAsBytes();
-    final filename = inputFile.uri.pathSegments.last;
+    final filename = Uri.decodeComponent(inputFile.uri.pathSegments.last);
     final origSize = rawBytes.length;
     final fileSha256 = sha256.convert(rawBytes).toString();
 
@@ -149,15 +149,33 @@ class PixelEncoderService {
 
     // 5. FFmpeg encode to MP4 with hardware-speed nearest neighbor scaling
     onProgress?.call(0.65, 'FFmpeg 正在压制 MP4 视频...');
+    final tempOutFile = File('${tempDir.path}/temp_enc_${DateTime.now().millisecondsSinceEpoch}.mp4');
     final outVideoPath = '${tempDir.path}/${filename}_pixel.mp4';
 
-    final ffmpegCmd = '-y -framerate $fps '
-        '-i "${framesDir.path}/frame_%06d.png" '
-        '-vf "scale=$width:$height:flags=neighbor" '
-        '-c:v libx264 -crf $crf -preset fast -tune stillimage -g 300 -pix_fmt yuv420p '
-        '"$outVideoPath"';
+    final args = [
+      '-y',
+      '-framerate',
+      '$fps',
+      '-i',
+      '${framesDir.path}/frame_%06d.png',
+      '-vf',
+      'scale=$width:$height:flags=neighbor',
+      '-c:v',
+      'libx264',
+      '-crf',
+      '$crf',
+      '-preset',
+      'fast',
+      '-tune',
+      'stillimage',
+      '-g',
+      '300',
+      '-pix_fmt',
+      'yuv420p',
+      tempOutFile.path,
+    ];
 
-    final session = await FFmpegKit.execute(ffmpegCmd);
+    final session = await FFmpegKit.executeWithArguments(args);
     final returnCode = await session.getReturnCode();
 
     // Clean up PNG frames
@@ -166,11 +184,17 @@ class PixelEncoderService {
     } catch (_) {}
 
     if (ReturnCode.isSuccess(returnCode)) {
+      final finalFile = await tempOutFile.copy(outVideoPath);
+      try {
+        await tempOutFile.delete();
+      } catch (_) {}
       onProgress?.call(1.0, '视频生成完毕！');
-      return File(outVideoPath);
+      return finalFile;
     } else {
-      final logs = await session.getLogsAsString();
-      throw Exception('FFmpeg 编码失败: $logs');
+      final rawLogs = await session.getLogsAsString() ?? '';
+      final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
+      throw Exception('FFmpeg 编码失败 (Code: $returnCode):\n$tailLogs');
     }
   }
 }
