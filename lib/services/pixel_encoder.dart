@@ -9,6 +9,70 @@ import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
 
+class _RenderParams {
+  final List<Uint8List> chunks;
+  final int totalChunks;
+  final int frameCapacity;
+  final int gridW;
+  final int gridH;
+  final int holdFrames;
+  final String framesDirPath;
+
+  _RenderParams({
+    required this.chunks,
+    required this.totalChunks,
+    required this.frameCapacity,
+    required this.gridW,
+    required this.gridH,
+    required this.holdFrames,
+    required this.framesDirPath,
+  });
+}
+
+/// Background Isolate worker for fast frame generation.
+/// Uses 3-channel RGB so black is (0,0,0) and white is (255,255,255).
+/// Generates small grid-size images (e.g. 320x180) in milliseconds;
+/// FFmpeg will scale them up to 1280x720 in hardware with flags=neighbor.
+void _renderFramesWorker(_RenderParams params) {
+  int frameIndex = 1;
+
+  for (int idx = 0; idx < params.totalChunks; idx++) {
+    final chunk = params.chunks[idx];
+    final frameRaw = PixelProtocol.buildFrame(
+      params.totalChunks,
+      idx,
+      chunk,
+      params.frameCapacity,
+    );
+    final bits = PixelProtocol.unpackBits(frameRaw);
+
+    // 3-channel RGB image (320x180 or 160x90)
+    final smallImg = img.Image(
+      width: params.gridW,
+      height: params.gridH,
+      numChannels: 3,
+    );
+
+    int bitIdx = 0;
+    for (int y = 0; y < params.gridH; y++) {
+      for (int x = 0; x < params.gridW; x++) {
+        final val = bits[bitIdx] == 1 ? 255 : 0;
+        smallImg.setPixelRgb(x, y, val, val, val);
+        bitIdx++;
+      }
+    }
+
+    final pngBytes = img.encodePng(smallImg);
+
+    for (int h = 0; h < params.holdFrames; h++) {
+      final framePath =
+          '${params.framesDirPath}/frame_${frameIndex.toString().padLeft(6, '0')}.png';
+      File(framePath).writeAsBytesSync(pngBytes, flush: true);
+      frameIndex++;
+    }
+  }
+}
+
 class PixelEncoderService {
   static const int width = 1280;
   static const int height = 720;
@@ -61,65 +125,45 @@ class PixelEncoderService {
     }
     final totalChunks = chunks.length;
 
-    // 4. Render frames to temp folder
+    // 4. Render frames in background Isolate (keeps UI 100% fluid)
     final tempDir = await getTemporaryDirectory();
     final framesDir = Directory(
       '${tempDir.path}/pixel_enc_${DateTime.now().millisecondsSinceEpoch}',
     );
     await framesDir.create(recursive: true);
 
-    int frameIndex = 1;
-    for (int idx = 0; idx < totalChunks; idx++) {
-      final chunk = chunks[idx];
-      final frameRaw = PixelProtocol.buildFrame(totalChunks, idx, chunk, frameCapacity);
-      final bits = PixelProtocol.unpackBits(frameRaw);
+    onProgress?.call(0.2, '后台快速生成点阵帧 ($totalChunks 分块)...');
 
-      // Render small image: gridW x gridH (320 x 180)
-      final smallImg = img.Image(width: gridW, height: gridH, numChannels: 1);
-      int bitIdx = 0;
-      for (int y = 0; y < gridH; y++) {
-        for (int x = 0; x < gridW; x++) {
-          final val = bits[bitIdx] == 1 ? 255 : 0;
-          smallImg.setPixelR(x, y, val);
-          bitIdx++;
-        }
-      }
+    await compute(
+      _renderFramesWorker,
+      _RenderParams(
+        chunks: chunks,
+        totalChunks: totalChunks,
+        frameCapacity: frameCapacity,
+        gridW: gridW,
+        gridH: gridH,
+        holdFrames: holdFrames,
+        framesDirPath: framesDir.path,
+      ),
+    );
 
-      // Upscale to 1280x720 using Nearest Neighbor interpolation
-      final scaledImg = img.copyResize(
-        smallImg,
-        width: width,
-        height: height,
-        interpolation: img.Interpolation.nearest,
-      );
-
-      final bmpBytes = img.encodeBmp(scaledImg);
-
-      for (int h = 0; h < holdFrames; h++) {
-        final framePath =
-            '${framesDir.path}/frame_${frameIndex.toString().padLeft(6, '0')}.bmp';
-        await File(framePath).writeAsBytes(bmpBytes, flush: true);
-        frameIndex++;
-      }
-
-      final progress = 0.1 + ((idx + 1) / totalChunks) * 0.6;
-      onProgress?.call(progress, '渲染像素点阵帧 (${idx + 1}/$totalChunks)...');
-    }
-
-    // 5. FFmpeg encode to MP4
-    onProgress?.call(0.75, 'FFmpeg 正在压制 MP4 视频 (CRF $crf)...');
+    // 5. FFmpeg encode to MP4 with hardware-speed nearest neighbor scaling
+    onProgress?.call(0.65, 'FFmpeg 正在压制 MP4 视频...');
     final outVideoPath = '${tempDir.path}/${filename}_pixel.mp4';
 
     final ffmpegCmd = '-y -framerate $fps '
-        '-i "${framesDir.path}/frame_%06d.bmp" '
+        '-i "${framesDir.path}/frame_%06d.png" '
+        '-vf "scale=$width:$height:flags=neighbor" '
         '-c:v libx264 -crf $crf -preset fast -tune stillimage -g 300 -pix_fmt yuv420p '
         '"$outVideoPath"';
 
     final session = await FFmpegKit.execute(ffmpegCmd);
     final returnCode = await session.getReturnCode();
 
-    // Clean up BMP frames
-    await framesDir.delete(recursive: true);
+    // Clean up PNG frames
+    try {
+      await framesDir.delete(recursive: true);
+    } catch (_) {}
 
     if (ReturnCode.isSuccess(returnCode)) {
       onProgress?.call(1.0, '视频生成完毕！');

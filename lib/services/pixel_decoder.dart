@@ -25,6 +25,77 @@ class DecodeResult {
   });
 }
 
+class _ScanParams {
+  final List<String> framePaths;
+  final int blockSize;
+  final int gridW;
+  final int gridH;
+  final int half;
+
+  _ScanParams({
+    required this.framePaths,
+    required this.blockSize,
+    required this.gridW,
+    required this.gridH,
+    required this.half,
+  });
+}
+
+class _ScanResult {
+  final Map<int, Uint8List> collectedChunks;
+  final int? totalChunks;
+
+  _ScanResult({
+    required this.collectedChunks,
+    required this.totalChunks,
+  });
+}
+
+/// Background Isolate worker for fast frame reading and center-pixel sampling.
+_ScanResult _scanFramesWorker(_ScanParams params) {
+  final Map<int, Uint8List> collected = {};
+  int? totalChunksExpected;
+
+  for (final path in params.framePaths) {
+    final file = File(path);
+    if (!file.existsSync()) continue;
+    final bytes = file.readAsBytesSync();
+    final frameImg = img.decodeJpg(bytes);
+    if (frameImg == null) continue;
+
+    final bits = <int>[];
+    for (int y = 0; y < params.gridH; y++) {
+      final py = y * params.blockSize + params.half;
+      for (int x = 0; x < params.gridW; x++) {
+        final px = x * params.blockSize + params.half;
+        final pixel = frameImg.getPixel(px, py);
+        // Red channel / Luma > 128 => 1, else 0
+        bits.add(pixel.r > 128 ? 1 : 0);
+      }
+    }
+
+    final rawData = PixelProtocol.packBits(bits);
+    final parsed = PixelProtocol.parseFrame(rawData);
+
+    if (parsed != null) {
+      totalChunksExpected = parsed.totalChunks;
+      if (!collected.containsKey(parsed.chunkIndex)) {
+        collected[parsed.chunkIndex] = parsed.payload;
+      }
+
+      // Early exit if all chunks are collected
+      if (collected.length == totalChunksExpected) {
+        break;
+      }
+    }
+  }
+
+  return _ScanResult(
+    collectedChunks: collected,
+    totalChunks: totalChunksExpected,
+  );
+}
+
 class PixelDecoderService {
   static const int width = 1280;
   static const int height = 720;
@@ -42,8 +113,8 @@ class PixelDecoderService {
 
     onProgress?.call(0.1, 'FFmpeg 正在快速抽帧...');
 
-    // 1. FFmpeg extract frames to BMP
-    final extractCmd = '-y -i "${videoFile.path}" "${extractDir.path}/frame_%06d.bmp"';
+    // 1. FFmpeg extract frames as high-speed JPG (-q:v 2)
+    final extractCmd = '-y -i "${videoFile.path}" -q:v 2 "${extractDir.path}/frame_%06d.jpg"';
     final session = await FFmpegKit.execute(extractCmd);
     if (!ReturnCode.isSuccess(await session.getReturnCode())) {
       final logs = await session.getLogsAsString();
@@ -58,71 +129,47 @@ class PixelDecoderService {
       throw Exception('未能从视频中提取出有效画面帧');
     }
 
-    onProgress?.call(0.3, '共提取 $totalFrames 帧，正在采样解析黑白矩阵...');
+    onProgress?.call(0.35, '提取出 $totalFrames 帧，后台并发解析黑白矩阵...');
 
     final gridW = width ~/ blockSize;
     final gridH = height ~/ blockSize;
     final half = blockSize ~/ 2;
+    final framePaths = frameFiles.map((f) => f.path).toList();
 
-    final Map<int, Uint8List> collectedChunks = {};
-    int? totalChunksExpected;
-    int scannedCount = 0;
-
-    // 2. Iterate frames and sample center pixel
-    for (final frameFile in frameFiles) {
-      scannedCount++;
-      final bytes = await frameFile.readAsBytes();
-      final frameImg = img.decodeBmp(bytes);
-      if (frameImg == null) continue;
-
-      final bits = <int>[];
-      for (int y = 0; y < gridH; y++) {
-        final py = y * blockSize + half;
-        for (int x = 0; x < gridW; x++) {
-          final px = x * blockSize + half;
-          final pixel = frameImg.getPixel(px, py);
-          // Red channel / Luma > 128 => 1, else 0
-          bits.add(pixel.r > 128 ? 1 : 0);
-        }
-      }
-
-      final rawData = PixelProtocol.packBits(bits);
-      final parsed = PixelProtocol.parseFrame(rawData);
-      if (parsed != null) {
-        totalChunksExpected = parsed.totalChunks;
-        if (!collectedChunks.containsKey(parsed.chunkIndex)) {
-          collectedChunks[parsed.chunkIndex] = parsed.payload;
-          final pct = (collectedChunks.length / parsed.totalChunks) * 100;
-          onProgress?.call(
-            0.3 + (collectedChunks.length / parsed.totalChunks) * 0.5,
-            '捕获分块 ${parsed.chunkIndex + 1}/${parsed.totalChunks} (${pct.toStringAsFixed(1)}%)...',
-          );
-        }
-
-        // Early termination once all chunks are captured!
-        if (collectedChunks.length == totalChunksExpected) {
-          break;
-        }
-      }
-    }
+    // 2. Sample pixels in background Isolate (100% smooth UI)
+    final scanResult = await compute(
+      _scanFramesWorker,
+      _ScanParams(
+        framePaths: framePaths,
+        blockSize: blockSize,
+        gridW: gridW,
+        gridH: gridH,
+        half: half,
+      ),
+    );
 
     // Clean up extracted frames
-    await extractDir.delete(recursive: true);
+    try {
+      await extractDir.delete(recursive: true);
+    } catch (_) {}
 
-    if (totalChunksExpected == null || collectedChunks.length < totalChunksExpected) {
+    final totalExpected = scanResult.totalChunks;
+    final collected = scanResult.collectedChunks;
+
+    if (totalExpected == null || collected.length < totalExpected) {
       throw Exception(
-        '还原失败：未能集齐全部数据分块（已收集 ${collectedChunks.length}/${totalChunksExpected ?? '?'}）',
+        '未能集齐全部数据分块（已收集 ${collected.length}/${totalExpected ?? '?'}）',
       );
     }
 
     onProgress?.call(0.85, '正在拼装数据流并进行元数据解包...');
 
     // 3. Reconstruct full stream
-    final totalLen = collectedChunks.values.fold<int>(0, (sum, c) => sum + c.length);
+    final totalLen = collected.values.fold<int>(0, (sum, c) => sum + c.length);
     final fullStream = Uint8List(totalLen);
     int currentOffset = 0;
-    for (int i = 0; i < totalChunksExpected; i++) {
-      final chunk = collectedChunks[i]!;
+    for (int i = 0; i < totalExpected; i++) {
+      final chunk = collected[i]!;
       fullStream.setRange(currentOffset, currentOffset + chunk.length, chunk);
       currentOffset += chunk.length;
     }
