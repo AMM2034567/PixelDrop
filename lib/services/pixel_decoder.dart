@@ -92,7 +92,7 @@ void _scanRawFramesWorker(_RawScanArgs args) {
     if (parsed != null) {
       totalChunksExpected = parsed.totalChunks;
       if (!collected.containsKey(parsed.chunkIndex)) {
-        collected[parsed.chunkIndex] = parsed.payload;
+        collected[parsed.chunkIndex] = Uint8List.fromList(parsed.payload);
 
         // Send progress update
         args.sendPort.send(_ScanProgressMsg(

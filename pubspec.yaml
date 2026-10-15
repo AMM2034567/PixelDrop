@@ -1,7 +1,7 @@
 name: pixel_drop
 description: "File to Pixel Video: Convert any file into an MP4 video of pure pixel blocks and restore it with 100% bit-exact integrity."
 publish_to: "none"
-version: 1.0.3+3
+version: 1.0.4+4
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

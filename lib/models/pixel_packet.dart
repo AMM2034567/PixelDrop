@@ -89,7 +89,7 @@ class PixelProtocol {
     return FrameParseResult(
       totalChunks: total,
       chunkIndex: idx,
-      payload: payload,
+      payload: Uint8List.fromList(payload),
     );
   }
 

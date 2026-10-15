@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_encoder.dart';
 import '../services/storage_helper.dart';
@@ -46,6 +47,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
     });
 
     await WakelockHelper.enable();
+    await ForegroundServiceHelper.start(
+      title: 'PixelDrop 正在制作视频',
+      content: '正在准备视频点阵...',
+      progress: 0,
+    );
 
     try {
       final res = await PixelEncoderService.encodeFileToVideo(
@@ -59,6 +65,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
             _progress = p;
             _statusText = status;
           });
+          ForegroundServiceHelper.update(
+            title: 'PixelDrop 正在制作视频',
+            content: status,
+            progress: (p * 100).toInt(),
+          );
         },
       );
 
@@ -100,6 +111,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         ),
       );
     } finally {
+      await ForegroundServiceHelper.stop();
       await WakelockHelper.disable();
     }
   }
