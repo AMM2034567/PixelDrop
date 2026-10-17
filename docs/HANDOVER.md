@@ -11,7 +11,7 @@
 * **GitHub 私有仓库**：`https://github.com/AMM2034567/file-to-video`
 * **主开发分支**：`main`
 * **最新发布版本**：**`v1.0.6`** (Git Tag: `v1.0.6`)
-* **移动端包名**：`com.antigravity.pixeldrop`
+* **移动端包名**：`io.github.amm2034567.pixeldrop`
 * **技术选型**：Flutter 3.24.3 + Dart + 原生 Android Kotlin (Foreground Service) + FFmpeg (`ffmpeg_kit_flutter_full_gpl`) + Python 原型基准测试脚本。
 
 ---
@@ -91,7 +91,7 @@ file-to-qrcode/
 ├── android/
 │   ├── app/src/main/
 │   │   ├── AndroidManifest.xml # 注册前台服务权限、数据同步类型权限
-│   │   └── kotlin/com/antigravity/pixeldrop/
+│   │   └── kotlin/io/github/amm2034567/pixeldrop/
 │   │       ├── MainActivity.kt        # 建立 Flutter 与 Native 通信的 MethodChannel
 │   │       └── PixelDropService.kt    # 原生前台服务 + PARTIAL_WAKE_LOCK 保活核心实现
 │   └── build.gradle            # 配置 desugar_jdk_libs:2.0.4 (脱糖支持)
@@ -131,7 +131,7 @@ file-to-qrcode/
 * **深层根因**：
   单纯依靠 Flutter 插件的屏幕常亮（`FLAG_KEEP_SCREEN_ON`）仅在前台有效。一旦用户返回桌面或锁屏，Android 系统的 Doze 模式与 LMK 机制会直接挂起进程或杀死后台线程。
 * **彻底根治方案**：
-  在 Android 原生层实现了 [`PixelDropService.kt`](../android/app/src/main/kotlin/com/antigravity/pixeldrop/PixelDropService.kt)，持有系统级 `PowerManager.PARTIAL_WAKE_LOCK` 并调用 `startForeground` 挂载常驻通知栏。锁屏或切换应用时 CPU 始终全速运行，任务结束后在 `finally` 块中立即释放锁并安全停用服务。
+  在 Android 原生层实现了 [`PixelDropService.kt`](../android/app/src/main/kotlin/io/github/amm2034567/pixeldrop/PixelDropService.kt)，持有系统级 `PowerManager.PARTIAL_WAKE_LOCK` 并调用 `startForeground` 挂载常驻通知栏。锁屏或切换应用时 CPU 始终全速运行，任务结束后在 `finally` 块中立即释放锁并安全停用服务。
 
 ### 3. 解码性能瓶颈
 * **深层根因**：

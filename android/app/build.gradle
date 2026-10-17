@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.antigravity.pixeldrop"
+    namespace "io.github.amm2034567.pixeldrop"
     compileSdk 35
     ndkVersion "25.1.8937393"
 
@@ -38,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.antigravity.pixeldrop"
+        applicationId "io.github.amm2034567.pixeldrop"
         minSdk 24
         targetSdk 34
         versionCode flutterVersionCode.toInteger()

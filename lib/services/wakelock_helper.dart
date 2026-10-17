@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 class WakelockHelper {
   static const MethodChannel _channel =
-      MethodChannel('com.antigravity.pixeldrop/wakelock');
+      MethodChannel('io.github.amm2034567.pixeldrop/wakelock');
 
   static Future<void> enable() async {
     if (!Platform.isAndroid) return;

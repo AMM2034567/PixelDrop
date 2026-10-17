@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 
 class ForegroundServiceHelper {
   static const MethodChannel _channel =
-      MethodChannel('com.antigravity.pixeldrop/service');
+      MethodChannel('io.github.amm2034567.pixeldrop/service');
 
   static int _lastUpdateMillis = 0;
 

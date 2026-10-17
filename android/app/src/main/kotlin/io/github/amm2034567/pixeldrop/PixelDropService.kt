@@ -1,4 +1,4 @@
-package com.antigravity.pixeldrop
+package io.github.amm2034567.pixeldrop
 
 import android.app.Notification
 import android.app.NotificationChannel

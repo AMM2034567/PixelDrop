@@ -1,4 +1,4 @@
-package com.antigravity.pixeldrop
+package io.github.amm2034567.pixeldrop
 
 import android.content.Intent
 import android.os.Build
@@ -8,8 +8,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity: FlutterActivity() {
-    private val WAKELOCK_CHANNEL = "com.antigravity.pixeldrop/wakelock"
-    private val SERVICE_CHANNEL = "com.antigravity.pixeldrop/service"
+    private val WAKELOCK_CHANNEL = "io.github.amm2034567.pixeldrop/wakelock"
+    private val SERVICE_CHANNEL = "io.github.amm2034567.pixeldrop/service"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

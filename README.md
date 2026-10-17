@@ -90,7 +90,7 @@
 * [`lib/models/pixel_packet.dart`](lib/models/pixel_packet.dart)：二进制协议规范（`PD01` 幻数、分块、CRC32）。
 * [`lib/services/pixel_encoder.dart`](lib/services/pixel_encoder.dart)：编码器，文件切片与视频合成。
 * [`lib/services/pixel_decoder.dart`](lib/services/pixel_decoder.dart)：解码器，Raw 灰度流中心点采样与文件重组。
-* [`android/app/src/main/kotlin/com/antigravity/pixeldrop/PixelDropService.kt`](android/app/src/main/kotlin/com/antigravity/pixeldrop/PixelDropService.kt)：原生前台常驻与 WakeLock 保活服务。
+* [`android/app/src/main/kotlin/io/github/amm2034567/pixeldrop/PixelDropService.kt`](android/app/src/main/kotlin/io/github/amm2034567/pixeldrop/PixelDropService.kt)：原生前台常驻与 WakeLock 保活服务。
 * [`.github/workflows/build.yml`](.github/workflows/build.yml)：云端 CI/CD 构建配置。
 
 ---
