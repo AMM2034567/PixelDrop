@@ -99,7 +99,7 @@ jobs:
           # Add Windows Quick Start Guide
           $readmeContent = @"
 ==================================================
-PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v1.0.6
+PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v0.6.0-beta
 ==================================================
 
 【快速上手】
@@ -119,13 +119,13 @@ PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v1.0.6
           Set-Content -Path "$pkgDir\README.txt" -Value $readmeContent -Encoding UTF8
 
           # Create distribution zip
-          Compress-Archive -Path $pkgDir -DestinationPath "PixelDrop-Windows-x64-v1.0.6.zip" -CompressionLevel Optimal
+          Compress-Archive -Path $pkgDir -DestinationPath "PixelDrop-Windows-x64-v0.6.0-beta.zip" -CompressionLevel Optimal
 
       - name: Upload Windows Portable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixelDrop-Windows-x64-v1.0.6.zip
-          path: PixelDrop-Windows-x64-v1.0.6.zip
+          name: PixelDrop-Windows-x64-v0.6.0-beta.zip
+          path: PixelDrop-Windows-x64-v0.6.0-beta.zip
 
   release:
     name: Publish Multi-Platform GitHub Release
@@ -149,14 +149,16 @@ PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v1.0.6
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.6
-          name: "PixelDrop v1.0.6 (全平台首发: Windows 桌面端 & Android 移动端双端发布)"
+          tag_name: v0.6.0-beta
+          name: "PixelDrop v0.6.0-beta (Windows 桌面端 & Android 移动端测试版)"
           draft: false
-          prerelease: false
+          prerelease: true
           body: |
-            ## 🚀 PixelDrop v1.0.6 全平台首发：Windows 桌面端 + Android 移动端重磅发布！
+            ## 🧪 PixelDrop v0.6.0-beta 全平台测试版：Windows 桌面端 + Android 移动端双端发布！
 
-            PixelDrop 现已正式迈入全平台时代！无需数据线、无需局域网配对，即可在电脑与手机之间通过点阵视频自由传递任意格式文件，比特级 100% SHA-256 位精确无损还原。
+            PixelDrop 现已正式迈入全平台阶段！无需数据线、无需局域网配对，即可在电脑与手机之间通过点阵视频自由传递任意格式文件，比特级 100% SHA-256 位精确无损还原。
+
+            > 📢 **测试版说明**：本项目当前处于私有验证测试阶段（v0.x），后续待功能完备后将正式开源并发布 v1.0.0 正式版。
 
             ---
 
@@ -179,7 +181,7 @@ PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v1.0.6
 
             | 平台 / 系统 | 推荐下载文件 | 说明 |
             | :--- | :--- | :--- |
-            | 🪟 **Windows 64位** | **`PixelDrop-Windows-x64-v1.0.6.zip`** | 绿色免安装版，解压后双击 `pixel_drop.exe` 即开即用 |
+            | 🪟 **Windows 64位** | **`PixelDrop-Windows-x64-v0.6.0-beta.zip`** | 绿色免安装测试版，解压后双击 `pixel_drop.exe` 即开即用 |
             | 🤖 **Android (推荐)** | **`app-arm64-v8a-release.apk`** | 适用于市面上绝大多数 64 位安卓手机 |
             | 🤖 **Android (老旧机型)** | **`app-armeabi-v7a-release.apk`** | 适用于 32 位老旧安卓设备 |
           files: release-assets/*

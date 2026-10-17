@@ -10,7 +10,7 @@
 * **项目名称**：PixelDrop (文件像素视频化传输与无损还原系统)
 * **GitHub 私有仓库**：`https://github.com/AMM2034567/file-to-video`
 * **主开发分支**：`main`
-* **最新发布版本**：**`v1.0.6`** (Git Tag: `v1.0.6`)
+* **最新发布版本**：**`v0.6.0-beta`** (Git Tag: `v0.6.0-beta`, 私有测试版)
 * **移动端包名**：`io.github.amm2034567.pixeldrop`
 * **技术选型**：Flutter 3.24.3 + Dart + 原生 Android Kotlin (Foreground Service) + FFmpeg (`ffmpeg_kit_flutter_full_gpl`) + Python 原型基准测试脚本。
 
@@ -156,7 +156,7 @@ file-to-qrcode/
   1. **1:1 严格复刻 24 像素同心矩阵点阵图标**：按用户上传图片几何特征生成全套 `ic_launcher`、`ic_launcher_round`、通知栏专用的纯白透底 `@drawable/ic_notification.png`（根治 Android 8+ 状态栏实心白块隐患）以及矢量组件 `DotMatrixLogo`；
   2. **深度消除“AI味”**：摒弃泛滥的高饱和紫粉渐变，改用克制优雅的 Slate Charcoal（深板岩灰蓝）MD3 质感主题；文案全面工程规范化；
   3. **交互体验打磨**：支持文件卡片【清除选择】（`✕`）、移除 `SegmentedButton` 冗余打勾图标、解决 320dp 窄屏与大字体无障碍缩放下的布局溢出问题；
-* **`v1.0.6` 全平台多端发布重大成果**：
+* **`v0.6.0-beta` 全平台多端测试版发布重大成果**：
   1. **Windows 桌面端原生落地**：
      - 生成完整 CMake / Win32 工程配置，支持 125%/150%/200% High-DPI 自适应缩放；
      - 默认窗口尺寸紧凑化优化（860 × 620，最小 680 × 480），NavigationRail 侧边栏与 MD3 卡片饱满精致；

@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         Text(
-                          '离线点阵视频文件传输 · v1.0.6',
+                          '离线点阵视频文件传输 · v0.6.0-beta',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: colorScheme.onSurfaceVariant,
                           ),
