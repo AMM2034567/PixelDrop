@@ -80,14 +80,19 @@ jobs:
         run: |
           $releaseDir = "build\windows\x64\runner\Release"
           $ffmpegCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
-          if ($ffmpegCmd) {
-            Write-Host "Found ffmpeg in runner environment at $($ffmpegCmd.Source)"
-            Copy-Item $ffmpegCmd.Source -Destination "$releaseDir\ffmpeg.exe" -Force
-          } else {
+          if (-not $ffmpegCmd) {
             Write-Host "ffmpeg not in PATH, installing via choco..."
             choco install ffmpeg --no-progress
-            $installedFfmpeg = Get-Command ffmpeg
-            Copy-Item $installedFfmpeg.Source -Destination "$releaseDir\ffmpeg.exe" -Force
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            $ffmpegCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
+          }
+          if ($ffmpegCmd) {
+            Write-Host "Found ffmpeg at $($ffmpegCmd.Source)"
+            Copy-Item $ffmpegCmd.Source -Destination "$releaseDir\ffmpeg.exe" -Force
+          } elseif (Test-Path "C:\ProgramData\chocolatey\bin\ffmpeg.exe") {
+            Copy-Item "C:\ProgramData\chocolatey\bin\ffmpeg.exe" -Destination "$releaseDir\ffmpeg.exe" -Force
+          } else {
+            Write-Warning "FFmpeg binary could not be found to bundle into release"
           }
           
           # Prepare distribution folder
@@ -97,26 +102,26 @@ jobs:
           Copy-Item -Path "$releaseDir\*" -Destination $pkgDir -Recurse -Force
           
           # Add Windows Quick Start Guide
-          $readmeContent = @"
-==================================================
-PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v0.6.0-beta
-==================================================
-
-【快速上手】
-1. 双击运行 pixel_drop.exe 即可打开软件。
-2. 支持直接从 Windows 资源管理器拖拽任意文件或 MP4 视频到窗口中：
-   - 「文件转视频」：选择或拖拽文件 -> 开始生成视频 -> 导出为高密度像素矩阵点阵 MP4 视频。
-   - 「视频转文件」：选择或拖拽视频 -> 开始还原文件 -> 自动提取原文件并进行 100% SHA-256 位精确校验。
-3. 视频与还原文件默认自动保存在系统目录：
-   - 视频导出目录: Downloads\PixelDrop\Videos
-   - 文件还原目录: Downloads\PixelDrop\Restored
-   可随时在软件界面一键点击「定位目录」在资源管理器中高亮展示。
-
-【免安装便携版特性】
-- 本绿色压缩包已内置原生 FFmpeg 极速视频处理引擎与全部必要动态运行库。
-- 无需安装额外驱动或配置环境变量，解压即可运行。
-"@
-          Set-Content -Path "$pkgDir\README.txt" -Value $readmeContent -Encoding UTF8
+          $readmeLines = @(
+            '==================================================',
+            'PixelDrop - 离线点阵视频文件传输 (Windows 桌面端) v0.6.0-beta',
+            '==================================================',
+            '',
+            '【快速上手】',
+            '1. 双击运行 pixel_drop.exe 即可打开软件。',
+            '2. 支持直接从 Windows 资源管理器拖拽任意文件或 MP4 视频到窗口中：',
+            '   - 「文件转视频」：选择或拖拽文件 -> 开始生成视频 -> 导出为高密度像素矩阵点阵 MP4 视频。',
+            '   - 「视频转文件」：选择或拖拽视频 -> 开始还原文件 -> 自动提取原文件并进行 100% SHA-256 位精确校验。',
+            '3. 视频与还原文件默认自动保存在系统目录：',
+            '   - 视频导出目录: Downloads\PixelDrop\Videos',
+            '   - 文件还原目录: Downloads\PixelDrop\Restored',
+            '   可随时在软件界面一键点击「定位目录」在资源管理器中高亮展示。',
+            '',
+            '【免安装便携版特性】',
+            '- 本绿色压缩包已内置原生 FFmpeg 极速视频处理引擎与全部必要动态运行库。',
+            '- 无需安装额外驱动或配置环境变量，解压即可运行。'
+          )
+          Set-Content -Path "$pkgDir\README.txt" -Value $readmeLines -Encoding UTF8
 
           # Create distribution zip
           Compress-Archive -Path $pkgDir -DestinationPath "PixelDrop-Windows-x64-v0.6.0-beta.zip" -CompressionLevel Optimal
