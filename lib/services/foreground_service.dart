@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 
 class ForegroundServiceHelper {
@@ -11,6 +12,7 @@ class ForegroundServiceHelper {
     required String content,
     int progress = 0,
   }) async {
+    if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod('startService', {
         'title': title,
@@ -26,6 +28,7 @@ class ForegroundServiceHelper {
     required int progress,
     bool force = false,
   }) async {
+    if (!Platform.isAndroid) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force && (now - _lastUpdateMillis < 250) && progress < 100) {
       return;
@@ -42,6 +45,7 @@ class ForegroundServiceHelper {
   }
 
   static Future<void> stop() async {
+    if (!Platform.isAndroid) return;
     try {
       await _channel.invokeMethod('stopService');
     } catch (_) {}

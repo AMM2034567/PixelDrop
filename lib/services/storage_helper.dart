@@ -18,6 +18,14 @@ class StorageHelper {
       if (await standardDownload.exists()) {
         downloadDir = standardDownload;
       }
+    } else if (Platform.isWindows) {
+      final userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null && userProfile.isNotEmpty) {
+        final winDownload = Directory('$userProfile\\Downloads');
+        if (await winDownload.exists()) {
+          downloadDir = winDownload;
+        }
+      }
     }
 
     // Fallback to getDownloadsDirectory or getApplicationDocumentsDirectory
@@ -27,7 +35,13 @@ class StorageHelper {
       } catch (_) {}
     }
 
-    downloadDir ??= await getApplicationDocumentsDirectory();
+    if (downloadDir == null) {
+      try {
+        downloadDir = await getApplicationDocumentsDirectory();
+      } catch (_) {}
+    }
+
+    downloadDir ??= Directory.systemTemp;
 
     final pixelDropDir = Directory('${downloadDir.path}/$baseFolderName');
     if (!await pixelDropDir.exists()) {
@@ -56,13 +70,44 @@ class StorageHelper {
     return dir;
   }
 
-  /// Opens the directory in the system file manager.
+  /// Opens the directory in the system file manager (Windows Explorer or platform file manager).
   static Future<OpenResult> openDirectory(Directory dir) async {
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    if (Platform.isWindows) {
+      try {
+        final normPath = dir.path.replaceAll('/', '\\');
+        await Process.run('explorer.exe', [normPath]);
+        return OpenResult(type: ResultType.done, message: 'Done');
+      } catch (_) {}
+    }
     return await OpenFilex.open(dir.path);
+  }
+
+  /// Locates and selects the specific file inside Windows Explorer.
+  static Future<OpenResult> showInExplorer(File file) async {
+    if (Platform.isWindows && await file.exists()) {
+      try {
+        final normPath = file.path.replaceAll('/', '\\');
+        await Process.run('explorer.exe', ['/select,', normPath]);
+        return OpenResult(type: ResultType.done, message: 'Done');
+      } catch (_) {}
+    }
+    return await openDirectory(file.parent);
   }
 
   /// Opens a specific file with system default handler.
   static Future<OpenResult> openFile(File file) async {
+    if (Platform.isWindows && await file.exists()) {
+      try {
+        final normPath = file.path.replaceAll('/', '\\');
+        final res = await Process.run('cmd.exe', ['/c', 'start', '""', normPath]);
+        if (res.exitCode == 0) {
+          return OpenResult(type: ResultType.done, message: 'Done');
+        }
+      } catch (_) {}
+    }
     return await OpenFilex.open(file.path);
   }
 }

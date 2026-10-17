@@ -15,6 +15,7 @@ class NotificationService {
   static const String completeChannelName = 'PixelDrop 完成通知';
 
   static Future<void> init() async {
+    if (!Platform.isAndroid) return;
     if (_isInitialized) return;
 
     const androidInit = AndroidInitializationSettings('@drawable/ic_notification');
@@ -41,6 +42,7 @@ class NotificationService {
     required int maxProgress,
     bool force = false,
   }) async {
+    if (!Platform.isAndroid) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     // Throttle notification updates to at most once per 300ms unless forced
     if (!force && (now - _lastUpdateMillis < 300) && progress < maxProgress) {
@@ -79,6 +81,7 @@ class NotificationService {
     required String title,
     required String body,
   }) async {
+    if (!Platform.isAndroid) return;
     try {
       const androidDetails = AndroidNotificationDetails(
         completeChannelId,
@@ -101,6 +104,7 @@ class NotificationService {
   }
 
   static Future<void> cancel(int id) async {
+    if (!Platform.isAndroid) return;
     try {
       await _plugin.cancel(id);
     } catch (_) {}

@@ -174,25 +174,68 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 720;
+          if (isWide) {
+            return Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _currentIndex,
+                  onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+                  labelType: NavigationRailLabelType.all,
+                  groupAlignment: -0.8,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.file_upload_outlined),
+                      selectedIcon: Icon(Icons.file_upload_rounded),
+                      label: Text('文件转视频'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.video_file_outlined),
+                      selectedIcon: Icon(Icons.video_file_rounded),
+                      label: Text('视频转文件'),
+                    ),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(
+                  child: IndexedStack(
+                    index: _currentIndex,
+                    children: _screens,
+                  ),
+                ),
+              ],
+            );
+          }
+          return IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          );
+        },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.file_upload_outlined),
-            selectedIcon: Icon(Icons.file_upload_rounded),
-            label: '文件转视频',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.video_file_outlined),
-            selectedIcon: Icon(Icons.video_file_rounded),
-            label: '视频转文件',
-          ),
-        ],
+      bottomNavigationBar: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 720) {
+            return const SizedBox.shrink();
+          }
+          return NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.file_upload_outlined),
+                selectedIcon: Icon(Icons.file_upload_rounded),
+                label: '文件转视频',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.video_file_outlined),
+                selectedIcon: Icon(Icons.video_file_rounded),
+                label: '视频转文件',
+              ),
+            ],
+          );
+        },
       ),
     );
   }

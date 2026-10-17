@@ -3,11 +3,9 @@ import 'dart:isolate';
 import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit_config.dart';
-import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
+import 'ffmpeg_runner.dart';
 import 'notification_service.dart';
 import 'storage_helper.dart';
 
@@ -133,7 +131,12 @@ class PixelDecoderService {
     int blockSize = 4,
     Function(double progress, String status)? onProgress,
   }) async {
-    final tempDir = await getTemporaryDirectory();
+    Directory tempDir;
+    try {
+      tempDir = await getTemporaryDirectory();
+    } catch (_) {
+      tempDir = Directory.systemTemp;
+    }
     final timestamp = DateTime.now().millisecondsSinceEpoch;
 
     // Safe ASCII paths
@@ -158,22 +161,6 @@ class PixelDecoderService {
       final gridH = height ~/ blockSize;
       final frameByteSize = gridW * gridH;
 
-      // Real-time statistics during FFmpeg raw extraction
-      FFmpegKitConfig.enableStatisticsCallback((statistics) {
-        final f = statistics.getVideoFrameNumber();
-        if (f > 0) {
-          final statusText = 'FFmpeg 极速解流画面: $f 帧';
-          onProgress?.call(0.05 + 0.35 * (f / 1500).clamp(0.0, 1.0), statusText);
-          NotificationService.showProgress(
-            id: 102,
-            title: 'PixelDrop 正在还原文件...',
-            body: statusText,
-            progress: 20,
-            maxProgress: 100,
-          );
-        }
-      });
-
       // 1. FFmpeg hardware-speed scale and dump to raw 8-bit grayscale stream
       final args = [
         '-y',
@@ -186,16 +173,22 @@ class PixelDecoderService {
         rawFramesFile.path,
       ];
 
-      final session = await FFmpegKit.executeWithArguments(args);
-      FFmpegKitConfig.enableStatisticsCallback(null);
-      final returnCode = await session.getReturnCode();
-
-      if (!ReturnCode.isSuccess(returnCode)) {
-        final rawLogs = await session.getLogsAsString();
-        final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
-        final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
-        throw Exception('FFmpeg 视频解流失败 (Code: $returnCode):\n$tailLogs');
-      }
+      await FfmpegRunner.execute(
+        args: args,
+        onProgress: (f, _) {
+          if (f > 0) {
+            final statusText = 'FFmpeg 极速解流画面: $f 帧';
+            onProgress?.call(0.05 + 0.35 * (f / 1500).clamp(0.0, 1.0), statusText);
+            NotificationService.showProgress(
+              id: 102,
+              title: 'PixelDrop 正在还原文件...',
+              body: statusText,
+              progress: 20,
+              maxProgress: 100,
+            );
+          }
+        },
+      );
 
       if (!await rawFramesFile.exists()) {
         throw Exception('未能从视频中提取出有效画面流');

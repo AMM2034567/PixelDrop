@@ -1,0 +1,657 @@
+FFmpegKit 8.1.2 for Windows x86_64, "full-gpl" variant
+
+FFmpeg n8.1.2 (unmodified, https://github.com/arthenica/FFmpeg/tree/n8.1.2),
+built as shared libraries and licensed GPL-3.0-or-later. See FFmpeg/.
+libffmpegkit.dll is FFmpegKit, licensed LGPL-3.0. See ffmpeg-kit/LICENSE.
+Build scripts and wrapper source: https://github.com/sk3llo/ffmpeg-kit/tree/windows-8.1.2
+Toolchain: gcc.exe (Rev5, Built by MSYS2 project) 16.1.0, GNU ld (GNU Binutils) 2.46.1
+
+Bundled third-party DLLs. All are unmodified MSYS2 (mingw-w64-x86_64) package
+binaries. Each package's license files are under third-party/<package>/,
+and its complete corresponding source is the MSYS2 source package listed.
+
+mingw-w64-x86_64-aom 3.14.1-1
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://aomedia.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-aom-3.14.1-1.src.tar.zst
+  DLLs:
+    libaom.dll  sha256:2c95d77057d2e9d0851fe352bc77d587e8cf2b5abee9aae6c660f11c7adf9507
+
+mingw-w64-x86_64-brotli 1.1.0-5
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/google/brotli
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-brotli-1.1.0-5.src.tar.zst
+  DLLs:
+    libbrotlicommon.dll  sha256:276a12fc7249af3fdd604609d4a46386082f760324afbd83008f72edf304880a
+    libbrotlidec.dll  sha256:368fa8da7478a441e07ff1c6ab2d20adc8e16b2dfe4dc9231c51f600e914ed92
+    libbrotlienc.dll  sha256:505730ac0a25745bb822205d1e8f40205b99f2b97899a8582f393b57b1a6ae81
+
+mingw-w64-x86_64-bzip2 1.0.8-3
+  License: custom
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://sourceware.org/bzip2/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-bzip2-1.0.8-3.src.tar.zst
+  DLLs:
+    libbz2-1.dll  sha256:b79cd3a7102e359ef6324e98966a67939e58ec2b651ae2847cae84a4dfa453f7
+
+mingw-w64-x86_64-chromaprint 1.6.0-1
+  License: LGPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://acoustid.org/chromaprint
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-chromaprint-1.6.0-1.src.tar.zst
+  DLLs:
+    libchromaprint.dll  sha256:cfe2a56538092944efdbc8e321248dbaca2bd1163e44b0439071dc559a34b38d
+
+mingw-w64-x86_64-crypto++ 8.9.0-2
+  License: spdx:BSL-1.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/weidai11/cryptopp
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-crypto++-8.9.0-2.src.tar.zst
+  DLLs:
+    libcryptopp.dll  sha256:215fae14c0d06a486769f1c6adee4b1edd51ed18449625f5ff5a82eb1d32950b
+
+mingw-w64-x86_64-curl 8.15.0-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://curl.se/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-curl-8.15.0-1.src.tar.zst
+  DLLs:
+    libcurl-4.dll  sha256:99bee76aa567d9ba76d9db5ffc1f2a37ff517fee2432002c0b2b4448a4ee9d3a
+
+mingw-w64-x86_64-dav1d 1.5.3-1
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://code.videolan.org/videolan/dav1d
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-dav1d-1.5.3-1.src.tar.zst
+  DLLs:
+    libdav1d-7.dll  sha256:f6fe8f2a22501c06963e3bf18a16a2d3d222f00ac11e7ec9ff32ac0623cb2a32
+
+mingw-w64-x86_64-expat 2.7.1-2
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://libexpat.github.io/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-expat-2.7.1-2.src.tar.zst
+  DLLs:
+    libexpat-1.dll  sha256:fa6b1cc24bdc46d787579493ddb50c34f8cb6c50a874ed537e2fb705bc53b3b5
+
+mingw-w64-x86_64-fftw 3.3.11-1
+  License: spdx:GPL-2.0-or-later
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.fftw.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-fftw-3.3.11-1.src.tar.zst
+  DLLs:
+    libfftw3-3.dll  sha256:3cf91e10bd0c715e9e2a8a595d653dfa27252f587861ffbdc321806e1b259c89
+
+mingw-w64-x86_64-fontconfig 2.18.1-1
+  License: custom
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://wiki.freedesktop.org/www/Software/fontconfig/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-fontconfig-2.18.1-1.src.tar.zst
+  DLLs:
+    libfontconfig-1.dll  sha256:3cc4825d8e3899f998fcc3619bd6ade62e252117dc46efe7bfe11e24060518b7
+
+mingw-w64-x86_64-freetype 2.14.3-1
+  License: spdx:GPL-2.0-or-later OR FTL
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.freetype.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-freetype-2.14.3-1.src.tar.zst
+  DLLs:
+    libfreetype-6.dll  sha256:bbb3e6390ee229c867ef31f10e42a49a61a92e434a11d40c6139a2608ebc6194
+
+mingw-w64-x86_64-fribidi 1.0.16-1
+  License: spdx:LGPL-2.1-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/fribidi/fribidi/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-fribidi-1.0.16-1.src.tar.zst
+  DLLs:
+    libfribidi-0.dll  sha256:84930fd86a3b46b62794a3bbaff21fbbaeaade5ff7cdc70be7f717ad29af87ed
+
+mingw-w64-x86_64-gcc-libs 16.1.0-5
+  License: spdx:GPL-3.0-or-later WITH GCC-exception-3.1 AND LGPL-2.1-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://gcc.gnu.org
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-gcc-16.1.0-5.src.tar.zst
+  DLLs:
+    libgcc_s_seh-1.dll  sha256:278f1101f2371c58b6b412a3206718e22343940a5164aceb4fb75f2bf3b38ed4
+    libgomp-1.dll  sha256:d40d5850b92e3dddc488781b7e04ea1ca531c728ce003657329cfd319eb6efd1
+    libstdc++-6.dll  sha256:3529d11c422b2aaf0bbad7221bf62ba7b5a39f854e89a015bb58b6b55a677da1
+
+mingw-w64-x86_64-gettext-runtime 0.26-1
+  License: spdx:GPL-3.0-or-later AND LGPL-2.1-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.gnu.org/software/gettext/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-gettext-0.26-1.src.tar.zst
+  DLLs:
+    libintl-8.dll  sha256:17bdd3de3329156e032949abcf3f0f9163febd0fb9299864b7eff7f31e7c15d4
+
+mingw-w64-x86_64-giflib 6.1.3-1
+  License: spdx:MIT
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://sourceforge.net/projects/giflib/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-giflib-6.1.3-1.src.tar.zst
+  DLLs:
+    libgif-7.dll  sha256:5b3d837ccaab84683dd93fbaddf2d98e1a9f90e0ddb8ea73dc70157adb4d26f1
+
+mingw-w64-x86_64-glib2 2.88.1-1
+  License: spdx:LGPL-2.1-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://gitlab.gnome.org/GNOME/glib
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-glib2-2.88.1-1.src.tar.zst
+  DLLs:
+    libglib-2.0-0.dll  sha256:716845eedea56a2f5274e0b64a994a6291ebd5b8e7f0a22b6265dfde5508dc3a
+
+mingw-w64-x86_64-gmp 6.3.0-2
+  License: LGPL3 GPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://gmplib.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-gmp-6.3.0-2.src.tar.zst
+  DLLs:
+    libgmp-10.dll  sha256:37248cda33845e7c5c35a574e57da762dd0a8268f0270d179f30a33746809681
+
+mingw-w64-x86_64-gnutls 3.8.13-2
+  License: spdx:GPL-3.0-or-later spdx:LGPL-2.1-or-later
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.gnutls.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-gnutls-3.8.13-2.src.tar.zst
+  DLLs:
+    libgnutls-30.dll  sha256:cde27f40b92ebc5389dcd79a0d693d4d069610db780dc9ea341343ef18464305
+
+mingw-w64-x86_64-graphite2 1.3.15-1
+  License: spdx:LGPL-2.1-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/silnrsi/graphite
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-graphite2-1.3.15-1.src.tar.zst
+  DLLs:
+    libgraphite2.dll  sha256:063a9ad34a5ec87d038b4646660957395224ecf2cf707917256b7d251a7c5f57
+
+mingw-w64-x86_64-harfbuzz 14.2.1-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://harfbuzz.github.io/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-harfbuzz-14.2.1-1.src.tar.zst
+  DLLs:
+    libharfbuzz-0.dll  sha256:54fb644a1143b3b81d494684f299aca9ff4b72134f12a7b1cfb2bd0f8fa9cef7
+
+mingw-w64-x86_64-jbigkit 2.1-5
+  License: spdx:GPL-2.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.cl.cam.ac.uk/~mgk25/jbigkit/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-jbigkit-2.1-5.src.tar.zst
+  DLLs:
+    libjbig-0.dll  sha256:275a827ba6839d47cfdbe059db1b1b403a92ff26e2b76a29362915487868bef2
+
+mingw-w64-x86_64-kvazaar 2.3.2-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://ultravideo.fi/kvazaar.html
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-kvazaar-2.3.2-1.src.tar.zst
+  DLLs:
+    libkvazaar-7.dll  sha256:fe76b3e76e90ca86635d45dc41444cd7be389890a796e4dfc962f39a21baf538
+
+mingw-w64-x86_64-lame 3.100-3
+  License: LGPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://lame.sourceforge.io/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-lame-3.100-3.src.tar.zst
+  DLLs:
+    libmp3lame-0.dll  sha256:f40c566b56a97e32036f3d5263fd7dc2dafa6fc7ded326045dd637dd55d68c24
+
+mingw-w64-x86_64-leptonica 1.87.0-1
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: http://www.leptonica.org
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-leptonica-1.87.0-1.src.tar.zst
+  DLLs:
+    libleptonica-6.dll  sha256:1869b44e3d46fd830620b042477e5d60a950779582f38f60291547efb27792f1
+
+mingw-w64-x86_64-lerc 4.1.0-1
+  License: spdx:Apache-2.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/Esri/lerc
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-lerc-4.1.0-1.src.tar.zst
+  DLLs:
+    libLerc.dll  sha256:c129a59106023b93405d022d8b08e898b89b92c39b44796cf3cbc284f903b840
+
+mingw-w64-x86_64-libarchive 3.8.1-2
+  License: BSD
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.libarchive.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libarchive-3.8.1-2.src.tar.zst
+  DLLs:
+    libarchive-13.dll  sha256:80de4411a3523f484dd6d504b07eae2f6250c3210a3f917d5c425cc96e2f4c1a
+
+mingw-w64-x86_64-libass 0.17.5-1
+  License: spdx:ISC
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://github.com/libass/libass
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libass-0.17.5-1.src.tar.zst
+  DLLs:
+    libass-9.dll  sha256:d7e21a7fa952033ff5bbacd2564b343671bf0ad4ae9338613935f2709861b9d2
+
+mingw-w64-x86_64-libb2 0.98.1-2
+  License: custom:CC0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://blake2.net/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libb2-0.98.1-2.src.tar.gz
+  DLLs:
+    libb2-1.dll  sha256:7fb8418a1172042dab5227fcd466b1bf293737f5b5cf35359e851516227f109c
+
+mingw-w64-x86_64-libdeflate 1.25-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/ebiggers/libdeflate
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libdeflate-1.25-1.src.tar.zst
+  DLLs:
+    libdeflate.dll  sha256:3f3fc3a73bc3623dc93b37bb321c484d3731d93006fd01c0495d15711826eb44
+
+mingw-w64-x86_64-libffi 3.5.1-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://sourceware.org/libffi
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libffi-3.5.1-1.src.tar.zst
+  DLLs:
+    libffi-8.dll  sha256:99e4b68e06f6cd0fef759ff5137bd1ec8fa83364702e91a8feaacf60899f95a5
+
+mingw-w64-x86_64-libiconv 1.18-1
+  License: spdx:LGPL-2.1-or-later documentation:spdx:GPL-3.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.gnu.org/software/libiconv/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libiconv-1.18-1.src.tar.zst
+  DLLs:
+    libiconv-2.dll  sha256:ff31fa811f9c07cc7fdaa68c9e8bca3a7b4fdf6e0a079a58175ea58ba139c7ae
+
+mingw-w64-x86_64-libidn2 2.3.8-2
+  License: spdx:GPL-2.0-or-later spdx:LGPL-3.0-or-later
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.gnu.org/software/libidn/#libidn2
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libidn2-2.3.8-2.src.tar.zst
+  DLLs:
+    libidn2-0.dll  sha256:250c5f755d35a56189c7d557f1ea3b2827f26ff83c563df8a6cedb0114777fc0
+
+mingw-w64-x86_64-libilbc 3.0.4-2
+  License: BSD
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/TimothyGu/libilbc/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libilbc-3.0.4-2.src.tar.zst
+  DLLs:
+    libilbc.dll  sha256:3d15f8b5d7e01d4dd64462f38316521ed4fb3a9dd1839b54c619ae8e78a5ad25
+
+mingw-w64-x86_64-libjpeg-turbo 3.1.4.1-3
+  License: custom:BSD-like
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://libjpeg-turbo.virtualgl.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libjpeg-turbo-3.1.4.1-3.src.tar.zst
+  DLLs:
+    libjpeg-8.dll  sha256:3d3a35baa905c540ea3ce59b57e1b2632eabf145c9921c8382334e7425431924
+
+mingw-w64-x86_64-libogg 1.3.6-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://xiph.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libogg-1.3.6-1.src.tar.zst
+  DLLs:
+    libogg-0.dll  sha256:3038ce8d161324a6349bf7c83b78493857ff6a3501e3adb3d541c6a07bd94a57
+
+mingw-w64-x86_64-libpng 1.6.58-1
+  License: custom
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: http://www.libpng.org/pub/png/libpng.html
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libpng-1.6.58-1.src.tar.zst
+  DLLs:
+    libpng16-16.dll  sha256:3737838ee8d6b893df7bdabf7439775371a57dce7e17ee6b35586023c64bd9ab
+
+mingw-w64-x86_64-libpsl 0.21.5-3
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://rockdaboot.github.io/libpsl/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libpsl-0.21.5-3.src.tar.zst
+  DLLs:
+    libpsl-5.dll  sha256:b31fc70eda598a39b65fe2736d815518db0652d641346f75eac40c2a0499b058
+
+mingw-w64-x86_64-libsamplerate 0.2.2-1
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://libsndfile.github.io/libsamplerate/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libsamplerate-0.2.2-1.src.tar.zst
+  DLLs:
+    libsamplerate-0.dll  sha256:1e08aeb1fecade2cf2d7a83463a1b375e13d5f2f008cdeea7409a3eff7ed9a0e
+
+mingw-w64-x86_64-libsoxr 0.1.3-5
+  License: LGPL
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://sourceforge.net/p/soxr/wiki/Home/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libsoxr-0.1.3-5.src.tar.zst
+  DLLs:
+    libsoxr.dll  sha256:5bb8f922b12995b0322b73bd94e2e6dadfeac58abc8beb4d0f69ca5f4747917d
+
+mingw-w64-x86_64-libssh2 1.11.1-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://libssh2.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libssh2-1.11.1-1.src.tar.zst
+  DLLs:
+    libssh2-1.dll  sha256:176d01497ed5abfedd82db3889a0f8f60a8e254fe841d95cda94de20e0dd4b42
+
+mingw-w64-x86_64-libtasn1 4.20.0-1
+  License: GPL3, LGPL
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.gnu.org/software/libtasn1/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libtasn1-4.20.0-1.src.tar.zst
+  DLLs:
+    libtasn1-6.dll  sha256:e69598aaed5f4ae9fa6f3803831665296c8677e8f0cf865840fa28b88f2c093e
+
+mingw-w64-x86_64-libtheora 1.2.0-1
+  License: spdx:BSD-3-Clause
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.theora.org
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libtheora-1.2.0-1.src.tar.zst
+  DLLs:
+    libtheoradec-2.dll  sha256:4f75e430b4e9a3e7c5e6d1da1f7999d8d75c5e505b8a34863cb4c6f82236a771
+    libtheoraenc-2.dll  sha256:c8119dcf51d98673cc55ec47fd54ab60e65fbf6191f0b6fc907afa3ebdc26bb9
+
+mingw-w64-x86_64-libtiff 4.7.1-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://libtiff.gitlab.io/libtiff/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libtiff-4.7.1-1.src.tar.zst
+  DLLs:
+    libtiff-6.dll  sha256:3a72d25c439ed511a6dc9e20cac5ac49eaa5e040b22b5272006d825cb206baca
+
+mingw-w64-x86_64-libunibreak 7.0-1
+  License: spdx:Zlib
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/adah1972/libunibreak/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libunibreak-7.0-1.src.tar.zst
+  DLLs:
+    libunibreak-7.dll  sha256:e146c2f36b2e36f620238f2bf0820ef9e74f5b39fbfb9ffe99183bb4a21809f0
+
+mingw-w64-x86_64-libunistring 1.3-1
+  License: spdx:LGPL-3.0-or-later OR GPL-3.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.gnu.org/software/libunistring
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libunistring-1.3-1.src.tar.zst
+  DLLs:
+    libunistring-5.dll  sha256:70813b4aaa82f8b0999d8c2fdd4c49c6d31035f17325f5f138f39f7273449adf
+
+mingw-w64-x86_64-libva 2.23.0-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://intel.github.io/libva/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libva-2.23.0-1.src.tar.zst
+  DLLs:
+    libva.dll  sha256:b31d70355988a9de985900a53cb8a5a4df5bae713759a3c45987fd72814e162f
+    libva_win32.dll  sha256:7e77ca54027daa4f69c36a28989a7807105d3671d2bfca37336d53bf781a4342
+
+mingw-w64-x86_64-libvorbis 1.3.7-2
+  License: custom
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://xiph.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libvorbis-1.3.7-2.src.tar.zst
+  DLLs:
+    libvorbis-0.dll  sha256:73db4516d49e0571f80d0f802f7bc0477f8a14067d1da00f340332f6c0303a08
+    libvorbisenc-2.dll  sha256:f7bbf43700c26bdadccb838e44bee13690c01142797cdb69ff3b9bf58b9b90d1
+
+mingw-w64-x86_64-libvpx 1.16.0-1
+  License: spdx:BSD-3-Clause
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.webmproject.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libvpx-1.16.0-1.src.tar.zst
+  DLLs:
+    libvpx-1.dll  sha256:a91c5ff5c0316f417a8b7eea438c2a8cd5bd08323da40c6dab1fc46ea7697cd7
+
+mingw-w64-x86_64-libwebp 1.6.0-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://developers.google.com/speed/webp/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libwebp-1.6.0-1.src.tar.zst
+  DLLs:
+    libsharpyuv-0.dll  sha256:ab0c9f61dc69b6bcdff1011e215f8d5fd6e5096aba9be3386ab87f217fbbeffe
+    libwebp-7.dll  sha256:c6c21a10f8cfe13270832e64640b82709e1d87b956b5f15af435a6c25acd6bbf
+    libwebpmux-3.dll  sha256:2c8a2e9d7901ec65330f31f9989c2a07ef0506e903b485fcd8b241a6bab9b88f
+
+mingw-w64-x86_64-libwinpthread 14.0.0.r147.g31bd54ab7-1
+  License: spdx:MIT AND BSD-3-Clause-Clear
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.mingw-w64.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-winpthreads-14.0.0.r147.g31bd54ab7-1.src.tar.zst
+  DLLs:
+    libwinpthread-1.dll  sha256:3357473705d91b39f1e17201dc5f7a2638aa345f02e903f6c94f1d52c27f3a71
+
+mingw-w64-x86_64-libx264 0.165.r3222.b35605a-2
+  License: custom
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.videolan.org/developers/x264.html
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-x264-0.165.r3222.b35605a-2.src.tar.zst
+  DLLs:
+    libx264-165.dll  sha256:3cda80e1c872fe1aae0bc8cd62cec6bb729a0bac6365697488783ab48e7651d7
+
+mingw-w64-x86_64-libxml2 2.15.3-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://gitlab.gnome.org/GNOME/libxml2/-/wikis/home
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-libxml2-2.15.3-1.src.tar.zst
+  DLLs:
+    libxml2-16.dll  sha256:beb148bc5c12cdccf7a28767981c9c3da8b3f2d607f03a1a3458d128fd650089
+
+mingw-w64-x86_64-lz4 1.10.0-1
+  License: BSD GPL2
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://lz4.github.io/lz4/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-lz4-1.10.0-1.src.tar.zst
+  DLLs:
+    liblz4.dll  sha256:35f917274bca8f19677ba66f1b3cc3c83568c3249fc43215fc16e76439c8e856
+
+mingw-w64-x86_64-nettle 3.10.2-1
+  License: spdx:GPL-2.0-or-later spdx:LGPL-3.0-or-later
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.lysator.liu.se/~nisse/nettle
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-nettle-3.10.2-1.src.tar.zst
+  DLLs:
+    libhogweed-6.dll  sha256:cc3a8a5ecbc172aba4ad72423979ca115c1ef8e21ba3fa2afc9e5e7e5b785b8e
+    libnettle-8.dll  sha256:0dad1e4809abe704b2cf57fc32b494b35da2ac35d1c478a78d150cd40f1a41fc
+
+mingw-w64-x86_64-nghttp2 1.66.0-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://nghttp2.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-nghttp2-1.66.0-1.src.tar.zst
+  DLLs:
+    libnghttp2-14.dll  sha256:80c021e49f2e6fbd3ca43eda218444a7a8bb33dc2a37036224f957af293dbed1
+
+mingw-w64-x86_64-nghttp3 1.11.0-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://nghttp2.org/nghttp3/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-nghttp3-1.11.0-1.src.tar.zst
+  DLLs:
+    libnghttp3-9.dll  sha256:c00a3ca068351ef2c229271cd43ce3f26c5d2e508db4c58868451f884a980af2
+
+mingw-w64-x86_64-ngtcp2 1.14.0-1
+  License: spdx:MIT
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://nghttp2.org/ngtcp2/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-ngtcp2-1.14.0-1.src.tar.zst
+  DLLs:
+    libngtcp2_crypto_ossl.dll  sha256:6fa790090b8c8a44cd2478d068664d028e028b16a82223ac50931685a1fd64b4
+    libngtcp2-16.dll  sha256:4d11bbb406a7972f660dccad767ac849643031b1ac7ef17a31291d5dd317728a
+
+mingw-w64-x86_64-opencore-amr 0.1.6-1
+  License: Apache
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://opencore-amr.sourceforge.io/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-opencore-amr-0.1.6-1.src.tar.zst
+  DLLs:
+    libopencore-amrnb-0.dll  sha256:8f9b1fd5fec2042a3b6af15eae54474210569c75bcc482fe702b45dcb3e96397
+    libopencore-amrwb-0.dll  sha256:7482267efad926b69c8304ec631fd531a2fc5d99b481b59cb5b34d8540a38dc2
+
+mingw-w64-x86_64-openh264 2.6.0-1
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.openh264.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-openh264-2.6.0-1.src.tar.zst
+  DLLs:
+    libopenh264-7.dll  sha256:4ac3e61bd10b696abf4b20391bf1cc682c393a0a27f0e96daf020dc1adf6e973
+
+mingw-w64-x86_64-openjpeg2 2.5.4-2
+  License: spdx:BSD-2-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.openjpeg.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-openjpeg2-2.5.4-2.src.tar.zst
+  DLLs:
+    libopenjp2-7.dll  sha256:123587086cb1a25d2a338fb9b7c1d6bda10bf9062625b4f08c6a92b3d9cafe47
+
+mingw-w64-x86_64-openssl 3.5.2-1
+  License: spdx:Apache-2.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://openssl-library.org
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-openssl-3.5.2-1.src.tar.zst
+  DLLs:
+    libcrypto-3-x64.dll  sha256:60904c0255240c0e1fdb054375ddeeddd4b58e22bbd4197584d23dea560993c1
+    libssl-3-x64.dll  sha256:c5d4f9950d87cd54e9864e449984b54fa5868d9f07cdafeacc36f0cf790c7667
+
+mingw-w64-x86_64-opus 1.6.1-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.opus-codec.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-opus-1.6.1-1.src.tar.zst
+  DLLs:
+    libopus-0.dll  sha256:90aa25a0a6525d7da48a7ae8dd3306e45b0c28ce09a73d2a02b56cd95418d5be
+
+mingw-w64-x86_64-p11-kit 0.25.5-1
+  License: spdx:BSD-3-Clause
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://p11-glue.freedesktop.org/p11-kit.html
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-p11-kit-0.25.5-1.src.tar.zst
+  DLLs:
+    libp11-kit-0.dll  sha256:f59bf47c701ca691e1ebb35f66ef16d3806fd1351e0df056e09c1a2270a1a934
+
+mingw-w64-x86_64-pcre2 10.47-1
+  License: spdx:BSD-3-Clause
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://pcre.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-pcre2-10.47-1.src.tar.zst
+  DLLs:
+    libpcre2-8-0.dll  sha256:a499fb8a7eff453d6e4f0842576bc5171d40a1505d8f7f13fff6cee51b738a62
+
+mingw-w64-x86_64-rubberband 3.3.0-1
+  License: spdx:GPL-2.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://breakfastquay.com/rubberband/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-rubberband-3.3.0-1.src.tar.zst
+  DLLs:
+    librubberband-2.dll  sha256:f15b59010dfbebadce5741932a39966ecdf87f9422d2082356c7ddc64928153e
+
+mingw-w64-x86_64-shine 3.1.1-2
+  License: GPL2
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://github.com/savonet/shine
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-shine-3.1.1-2.src.tar.zst
+  DLLs:
+    libshine-3.dll  sha256:4d91b3dd821be02a6a1849ff035ca1b9cd14b891650ad26cf5f2725be3ea26b4
+
+mingw-w64-x86_64-snappy 1.2.2-2
+  License: spdx:BSD-3-Clause
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://github.com/google/snappy
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-snappy-1.2.2-2.src.tar.zst
+  DLLs:
+    libsnappy.dll  sha256:a0692c93212898f29d072d611184828ccaf7add78137fbe977a8504fcc278c21
+
+mingw-w64-x86_64-speex 1.2.1-1
+  License: BSD
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://speex.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-speex-1.2.1-1.src.tar.zst
+  DLLs:
+    libspeex-1.dll  sha256:3cd8b5e812022307d8ba09747b648a7402fc4caa44b50e328b3424102ab98f3a
+
+mingw-w64-x86_64-srt 1.5.5-1
+  License: spdx:MPL-2.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.srtalliance.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-srt-1.5.5-1.src.tar.zst
+  DLLs:
+    libsrt.dll  sha256:f422904f9f032b051bfe42547a531158dabc28aa3cf4e35fd41363bf3401f60e
+
+mingw-w64-x86_64-tesseract-ocr 5.5.2-1
+  License: spdx:Apache-2.0
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://github.com/tesseract-ocr/tesseract
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-tesseract-ocr-5.5.2-1.src.tar.zst
+  DLLs:
+    libtesseract-5.5.dll  sha256:e311f92e5d194bcec89b4fa8ff783803c3c2b0ae4c56f488eba358ef90180bcb
+
+mingw-w64-x86_64-twolame 0.4.0-3
+  License: LGPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.twolame.org/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-twolame-0.4.0-3.src.tar.zst
+  DLLs:
+    libtwolame-0.dll  sha256:5bab0822df202e1eaebf25f3c93009f7156711f17b0d297974706606761bfffd
+
+mingw-w64-x86_64-vid.stab 1.1.1-1
+  License: spdx:GPL-2.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: http://public.hronopik.de/vid.stab
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-vid.stab-1.1.1-1.src.tar.zst
+  DLLs:
+    libvidstab.dll  sha256:8f286dcb096c736360340f3020d84a4b49782796c9da445de275546a7f640835
+
+mingw-w64-x86_64-vo-amrwbenc 0.1.3-2
+  License: spdx:Apache-2.0
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://sourceforge.net/projects/opencore-amr/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-vo-amrwbenc-0.1.3-2.src.tar.zst
+  DLLs:
+    libvo-amrwbenc-0.dll  sha256:03f99fb57eb5b0f8fcd867db597418cd501a800ae74fe44ba13d3632e9136891
+
+mingw-w64-x86_64-x265 4.2-2
+  License: GPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://bitbucket.org/multicoreware/x265_git
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-x265-4.2-2.src.tar.zst
+  DLLs:
+    libx265-216.dll  sha256:d7e95aae91fb40a1d90eddf8cd39465b04bd008221f83f95f50e5dc9670cb9ec
+
+mingw-w64-x86_64-xvidcore 1.3.7-5
+  License: GPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://www.xvid.com/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-xvidcore-1.3.7-5.src.tar.zst
+  DLLs:
+    xvidcore.dll  sha256:1c19803a7d0d8fe21064459dd51725ffdefb07a96079967417bf597178b4db33
+
+mingw-w64-x86_64-xz 5.8.1-2
+  License: spdx:0BSD AND LGPL-2.1-or-later AND GPL-2.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://tukaani.org/xz
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-xz-5.8.1-2.src.tar.zst
+  DLLs:
+    liblzma-5.dll  sha256:9b5d2cdcdb2bf2f89b44166ba115276b2dcd7a3349692e46f922578eaa4d6a03
+
+mingw-w64-x86_64-zimg 3.0.6-3
+  License: spdx:WTFPL
+  License files: upstream sources in the MSYS2 source package (package installs none)
+  Upstream: https://github.com/sekrit-twc/zimg
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-zimg-3.0.6-3.src.tar.zst
+  DLLs:
+    libzimg-2.dll  sha256:26ad6d01991171038ca5a4078a3854ea2f7765beb572e567a83ce15d495d75dc
+
+mingw-w64-x86_64-zlib 1.3.1-1
+  License: spdx:Zlib
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://www.zlib.net/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-zlib-1.3.1-1.src.tar.zst
+  DLLs:
+    zlib1.dll  sha256:cb7ab3788d10940df874acd97b1821bbb5ee4a91f3eec11982bb5bf7a3c96443
+
+mingw-w64-x86_64-zstd 1.5.7-1
+  License: spdx:BSD-3-Clause OR GPL-2.0-or-later
+  License files: installed package (/mingw64/share/licenses)
+  Upstream: https://facebook.github.io/zstd/
+  Source: https://repo.msys2.org/mingw/sources/mingw-w64-zstd-1.5.7-1.src.tar.zst
+  DLLs:
+    libzstd.dll  sha256:b13d4f30b93c96823473d742dda0075f7334cba03a40c33d8a7dc282e37b1500
+

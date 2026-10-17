@@ -4,11 +4,9 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit_config.dart';
-import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
+import 'ffmpeg_runner.dart';
 import 'notification_service.dart';
 import 'storage_helper.dart';
 
@@ -152,7 +150,12 @@ class PixelEncoderService {
     final totalChunks = chunks.length;
 
     // 4. Render frames in background Isolate with real-time progress
-    final tempDir = await getTemporaryDirectory();
+    Directory tempDir;
+    try {
+      tempDir = await getTemporaryDirectory();
+    } catch (_) {
+      tempDir = Directory.systemTemp;
+    }
     final sessionTimestamp = DateTime.now().millisecondsSinceEpoch;
     final framesDir = Directory('${tempDir.path}/pixel_enc_$sessionTimestamp');
     await framesDir.create(recursive: true);
@@ -195,24 +198,7 @@ class PixelEncoderService {
     // 5. FFmpeg encode to MP4 with hardware scaling and real-time statistics
     onProgress?.call(0.52, 'FFmpeg 正在压制 MP4 视频...');
     final tempOutFile = File('${tempDir.path}/temp_enc_$sessionTimestamp.mp4');
-
     final totalTargetFrames = totalChunks * holdFrames;
-    FFmpegKitConfig.enableStatisticsCallback((statistics) {
-      final f = statistics.getVideoFrameNumber();
-      if (f > 0 && totalTargetFrames > 0) {
-        final ratio = (f / totalTargetFrames).clamp(0.0, 1.0);
-        final currentP = 0.52 + 0.45 * ratio;
-        final statusText = 'FFmpeg 硬件压制: $f / $totalTargetFrames 帧 (${(ratio * 100).toInt()}%)';
-        onProgress?.call(currentP, statusText);
-        NotificationService.showProgress(
-          id: 101,
-          title: 'PixelDrop 正在压制视频...',
-          body: statusText,
-          progress: (currentP * 100).toInt(),
-          maxProgress: 100,
-        );
-      }
-    });
 
     final args = [
       '-y',
@@ -237,16 +223,34 @@ class PixelEncoderService {
       tempOutFile.path,
     ];
 
-    final session = await FFmpegKit.executeWithArguments(args);
-    FFmpegKitConfig.enableStatisticsCallback(null);
-    final returnCode = await session.getReturnCode();
-
-    // Clean up temporary PNG frames
     try {
-      await framesDir.delete(recursive: true);
-    } catch (_) {}
+      await FfmpegRunner.execute(
+        args: args,
+        totalExpectedFrames: totalTargetFrames,
+        onProgress: (f, ratio) {
+          if (f > 0 && totalTargetFrames > 0) {
+            final r = ratio ?? (f / totalTargetFrames).clamp(0.0, 1.0);
+            final currentP = 0.52 + 0.45 * r;
+            final statusText = 'FFmpeg 硬件压制: $f / $totalTargetFrames 帧 (${(r * 100).toInt()}%)';
+            onProgress?.call(currentP, statusText);
+            NotificationService.showProgress(
+              id: 101,
+              title: 'PixelDrop 正在压制视频...',
+              body: statusText,
+              progress: (currentP * 100).toInt(),
+              maxProgress: 100,
+            );
+          }
+        },
+      );
+    } finally {
+      // Clean up temporary PNG frames
+      try {
+        await framesDir.delete(recursive: true);
+      } catch (_) {}
+    }
 
-    if (ReturnCode.isSuccess(returnCode)) {
+    if (await tempOutFile.exists()) {
       // 6. Save final video into Download/PixelDrop/Videos
       final videosDir = await StorageHelper.getVideosDir();
       String targetPath = '${videosDir.path}/${filename}_pixel.mp4';
@@ -278,10 +282,7 @@ class PixelEncoderService {
         sha256: fileSha256,
       );
     } else {
-      final rawLogs = await session.getLogsAsString();
-      final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
-      final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
-      throw Exception('FFmpeg 编码失败 (Code: $returnCode):\n$tailLogs');
+      throw Exception('FFmpeg 压制未生成视频文件');
     }
   }
 }

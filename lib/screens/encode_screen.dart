@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_encoder.dart';
@@ -20,6 +21,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
   File? _selectedFile;
   int _blockSize = 4; // 4 or 8
   bool _isEncoding = false;
+  bool _isDragging = false;
   double _progress = 0.0;
   String _statusText = '';
   EncodeResult? _result;
@@ -121,46 +123,122 @@ class _EncodeScreenState extends State<EncodeScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    return DropTarget(
+      onDragEntered: (details) {
+        if (!_isEncoding) setState(() => _isDragging = true);
+      },
+      onDragExited: (details) {
+        setState(() => _isDragging = false);
+      },
+      onDragDone: (details) {
+        setState(() => _isDragging = false);
+        if (!_isEncoding && details.files.isNotEmpty) {
+          final dropped = details.files.first;
+          final entityType = FileSystemEntity.typeSync(dropped.path);
+          if (entityType == FileSystemEntityType.directory) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('PixelDrop 暂不支持直接拖拽文件夹，请拖拽文件或先压缩为 ZIP')),
+            );
+            return;
+          }
+          setState(() {
+            _selectedFile = File(dropped.path);
+            _result = null;
+            _progress = 0.0;
+            _statusText = '';
+          });
+          if (details.files.length > 1) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('已导入第 1 个文件: ${details.files.first.name}')),
+            );
+          }
+        }
+      },
+      child: Stack(
         children: [
-          // 1. File Picker / Selected File Card
-          _buildFileSection(context),
-          const SizedBox(height: 16),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. File Picker / Selected File Card
+                    _buildFileSection(context),
+                    const SizedBox(height: 16),
 
-          // 2. Preset Specification
-          _buildPresetSection(context),
-          const SizedBox(height: 20),
+                    // 2. Preset Specification
+                    _buildPresetSection(context),
+                    const SizedBox(height: 20),
 
-          // 3. Action Button
-          FilledButton.icon(
-            onPressed: (_selectedFile != null && !_isEncoding) ? _startEncoding : null,
-            icon: _isEncoding
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.onPrimary,
+                    // 3. Action Button
+                    FilledButton.icon(
+                      onPressed: (_selectedFile != null && !_isEncoding) ? _startEncoding : null,
+                      icon: _isEncoding
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: colorScheme.onPrimary,
+                              ),
+                            )
+                          : const Icon(Icons.movie_creation_outlined),
+                      label: Text(_isEncoding ? '正在生成视频...' : '开始生成视频'),
                     ),
-                  )
-                : const Icon(Icons.movie_creation_outlined),
-            label: Text(_isEncoding ? '正在生成视频...' : '开始生成视频'),
+                    const SizedBox(height: 16),
+
+                    // 4. Progress Area
+                    if (_isEncoding || (_statusText.isNotEmpty && _result == null)) ...[
+                      _buildProgressCard(context),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // 5. Result Card
+                    if (_result != null) ...[
+                      _buildResultCard(context),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-
-          // 4. Progress Area
-          if (_isEncoding || (_statusText.isNotEmpty && _result == null)) ...[
-            _buildProgressCard(context),
-            const SizedBox(height: 16),
-          ],
-
-          // 5. Result Card
-          if (_result != null) ...[
-            _buildResultCard(context),
-          ],
+          if (_isDragging)
+            Positioned.fill(
+              child: Container(
+                color: colorScheme.surface.withValues(alpha: 0.85),
+                child: Center(
+                  child: Container(
+                    margin: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 32),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: colorScheme.primary, width: 2),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.file_download_rounded,
+                          size: 56,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          '松开鼠标以导入此文件',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -201,7 +279,9 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '支持任意类型文件（文档、压缩包、图片等）',
+                  Platform.isWindows
+                      ? '支持任意类型文件（点击选择或直接拖拽至窗口）'
+                      : '支持任意类型文件（文档、压缩包、图片等）',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                   ),
@@ -411,7 +491,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
       color: colorScheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: colorScheme.primary.withOpacity(0.3)),
+        side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18.0),
@@ -474,9 +554,9 @@ class _EncodeScreenState extends State<EncodeScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.4)),
+                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
               ),
               child: SelectableText(
                 _result!.sha256,
@@ -494,11 +574,18 @@ class _EncodeScreenState extends State<EncodeScreen> {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => Share.shareXFiles([XFile(_result!.videoFile.path)]),
-                    icon: const Icon(Icons.share_rounded, size: 18),
+                    onPressed: () async {
+                      final openRes = await StorageHelper.openFile(_result!.videoFile);
+                      if (openRes.type != ResultType.done && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('无法直接播放: ${openRes.message}')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.play_circle_filled_rounded, size: 18),
                     label: const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text('分享视频'),
+                      child: Text('播放视频'),
                     ),
                   ),
                 ),
@@ -506,38 +593,64 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final dir = await StorageHelper.getVideosDir();
-                      final openRes = await StorageHelper.openDirectory(dir);
+                      final openRes = await StorageHelper.showInExplorer(_result!.videoFile);
                       if (openRes.type != ResultType.done && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('无法打开目录: ${openRes.message}')),
+                          SnackBar(content: Text('无法定位目录: ${openRes.message}')),
                         );
                       }
                     },
                     icon: const Icon(Icons.folder_open_rounded, size: 18),
                     label: const FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Text('打开目录'),
+                      child: Text('定位目录'),
                     ),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final openRes = await OpenFilex.open(_result!.videoFile.path);
-                if (openRes.type != ResultType.done && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('无法直接播放: ${openRes.message}')),
-                  );
-                }
-              },
-              icon: const Icon(Icons.play_circle_outline_rounded, size: 18),
-              label: const FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text('播放视频'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: _result!.videoFile.path));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('已复制视频完整路径: ${_result!.videoFile.path}')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 18),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('复制路径'),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await Share.shareXFiles([XFile(_result!.videoFile.path)]);
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('分享提示: $e')),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.share_rounded, size: 18),
+                    label: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('分享视频'),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
