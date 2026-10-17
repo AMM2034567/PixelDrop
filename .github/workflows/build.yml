@@ -53,7 +53,7 @@ jobs:
 
   build-windows:
     name: Build Windows Desktop
-    runs-on: windows-latest
+    runs-on: windows-2022
 
     steps:
       - name: Checkout Code
@@ -68,6 +68,9 @@ jobs:
 
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
+
+      - name: Verify Flutter & Windows Toolchain
+        run: flutter doctor -v
 
       - name: Install Dependencies
         run: flutter pub get
