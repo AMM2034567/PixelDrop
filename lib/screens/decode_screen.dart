@@ -414,8 +414,8 @@ class _DecodeScreenState extends State<DecodeScreen> {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: isMatched
-              ? colorScheme.primary.withValues(alpha: 0.3)
-              : colorScheme.error.withValues(alpha: 0.5),
+              ? colorScheme.primary.withOpacity(0.3)
+              : colorScheme.error.withOpacity(0.5),
         ),
       ),
       child: Padding(
@@ -449,7 +449,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isMatched
                               ? colorScheme.onSurfaceVariant
-                              : colorScheme.error.withValues(alpha: 0.8),
+                              : colorScheme.error.withOpacity(0.8),
                         ),
                       ),
                     ],
@@ -498,9 +498,9 @@ class _DecodeScreenState extends State<DecodeScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.4)),
               ),
               child: SelectableText(
                 _result!.sha256,

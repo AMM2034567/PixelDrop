@@ -55,7 +55,7 @@ class PixelDropApp extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: lightColorScheme.outlineVariant.withValues(alpha: 0.5),
+              color: lightColorScheme.outlineVariant.withOpacity(0.5),
             ),
           ),
           color: lightColorScheme.surfaceContainerLow,
@@ -127,7 +127,7 @@ class PixelDropApp extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: darkColorScheme.outlineVariant.withValues(alpha: 0.4),
+              color: darkColorScheme.outlineVariant.withOpacity(0.4),
             ),
           ),
           color: darkColorScheme.surfaceContainerLow,
