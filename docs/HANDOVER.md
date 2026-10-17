@@ -10,7 +10,7 @@
 * **项目名称**：PixelDrop (文件像素视频化传输与无损还原系统)
 * **GitHub 私有仓库**：`https://github.com/AMM2034567/file-to-video`
 * **主开发分支**：`main`
-* **最新发布版本**：**`v1.0.5`** (Git Tag: `v1.0.5`, Commit: `60b57de`)
+* **最新发布版本**：**`v1.0.6`** (Git Tag: `v1.0.6`)
 * **移动端包名**：`com.antigravity.pixeldrop`
 * **技术选型**：Flutter 3.24.3 + Dart + 原生 Android Kotlin (Foreground Service) + FFmpeg (`ffmpeg_kit_flutter_full_gpl`) + Python 原型基准测试脚本。
 
@@ -156,12 +156,17 @@ file-to-qrcode/
   1. **1:1 严格复刻 24 像素同心矩阵点阵图标**：按用户上传图片几何特征生成全套 `ic_launcher`、`ic_launcher_round`、通知栏专用的纯白透底 `@drawable/ic_notification.png`（根治 Android 8+ 状态栏实心白块隐患）以及矢量组件 `DotMatrixLogo`；
   2. **深度消除“AI味”**：摒弃泛滥的高饱和紫粉渐变，改用克制优雅的 Slate Charcoal（深板岩灰蓝）MD3 质感主题；文案全面工程规范化；
   3. **交互体验打磨**：支持文件卡片【清除选择】（`✕`）、移除 `SegmentedButton` 冗余打勾图标、解决 320dp 窄屏与大字体无障碍缩放下的布局溢出问题；
-* **Windows 桌面端原生落地重大成果**：
-  1. **支持 Windows 原生编译运行**：生成完整 CMake / Win32 工程配置，支持 125%/150%/200% High-DPI 自适应缩放与最小窗口保护；
-  2. **文件拖拽（Drag & Drop）**：支持直接从资源管理器拖入文件/视频快速编解码，内置文件夹类型拦截与安全提示；
-  3. **响应式宽屏布局**：桌面端自动启用 `NavigationRail` 侧边导航与优雅居中卡片；
-  4. **原生 Explorer 联动**：支持一键在资源管理器中定位高亮生成文件，支持路径一键复制；
-  5. **极速编解码**：打包内置 Windows 原生高性能 FFmpeg 动态库，端到端测试 100% SHA-256 位无损通过；本地 Release 包位于 `build/windows/x64/runner/Release/pixel_drop.exe`。
+* **`v1.0.6` 全平台多端发布重大成果**：
+  1. **Windows 桌面端原生落地**：
+     - 生成完整 CMake / Win32 工程配置，支持 125%/150%/200% High-DPI 自适应缩放；
+     - 默认窗口尺寸紧凑化优化（860 × 620，最小 680 × 480），NavigationRail 侧边栏与 MD3 卡片饱满精致；
+     - 全套原生 24 像素同心矩阵点阵高清图标与任务栏绑定；
+     - 文件与视频拖拽（Drag & Drop）支持与文件夹安全拦截；
+     - 系统 Explorer 联动：一键在资源管理器中定位并高亮目标文件；
+  2. **多端 CI/CD 自动化构建与便携绿色包分发**：
+     - GitHub Actions 云端 Ubuntu Runner 并行构建 Android 双架构 APK (`arm64-v8a` 与 `armeabi-v7a`)；
+     - GitHub Actions 云端 Windows Runner 并行构建 Windows 64 位原生 Release 程序；
+     - 自动打包内置原生 FFmpeg 极速视频处理引擎与绿色免安装运行库，生成 `PixelDrop-Windows-x64-v1.0.6.zip` 并与说明文档共同自动发布至 GitHub Release。
 
 ### 2. 建议下一位助手可继续探索的方向：
 1. **多平台与多端形态扩展**：

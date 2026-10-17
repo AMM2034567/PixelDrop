@@ -54,7 +54,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Verify Info Sheet Content
-    expect(find.text('离线点阵视频文件传输 · v1.0.5'), findsOneWidget);
+    expect(find.text('离线点阵视频文件传输 · v1.0.6'), findsOneWidget);
     expect(find.text('工作原理'), findsOneWidget);
     expect(find.text('规格选择'), findsOneWidget);
     expect(find.text('数据完整性'), findsOneWidget);
