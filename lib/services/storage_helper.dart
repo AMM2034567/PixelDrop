@@ -27,9 +27,7 @@ class StorageHelper {
       } catch (_) {}
     }
 
-    if (downloadDir == null) {
-      downloadDir = await getApplicationDocumentsDirectory();
-    }
+    downloadDir ??= await getApplicationDocumentsDirectory();
 
     final pixelDropDir = Directory('${downloadDir.path}/$baseFolderName');
     if (!await pixelDropDir.exists()) {

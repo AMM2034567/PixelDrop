@@ -191,7 +191,7 @@ class PixelDecoderService {
       final returnCode = await session.getReturnCode();
 
       if (!ReturnCode.isSuccess(returnCode)) {
-        final rawLogs = await session.getLogsAsString() ?? '';
+        final rawLogs = await session.getLogsAsString();
         final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
         final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
         throw Exception('FFmpeg 视频解流失败 (Code: $returnCode):\n$tailLogs');

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/dot_matrix_logo.dart';
 import 'encode_screen.dart';
 import 'decode_screen.dart';
 
@@ -17,41 +18,127 @@ class _HomeScreenState extends State<HomeScreen> {
     DecodeScreen(),
   ];
 
-  void _showInfoDialog() {
-    showDialog(
+  void _showInfoSheet() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.auto_awesome, color: Colors.indigo),
-            SizedBox(width: 8),
-            Text('关于 PixelDrop'),
-          ],
-        ),
-        content: const SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'PixelDrop 是一款基于【纯像素块点阵编码（ISG架构）】的文件视频互转工具。',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              Text('• 100% 满屏数据装载，比传统二维码容量大 15 倍。'),
-              Text('• 视频体积仅为原文件的 1.2x，远超二维码视频。'),
-              Text('• 内置自适应 Gzip 压缩与帧级 CRC32 容错。'),
-              Text('• 还原全过程经过 SHA-256 全局哈希密码学校验，保证比特级无损。'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('我知道了'),
-          ),
-        ],
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: DotMatrixLogo(
+                        size: 28,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'PixelDrop',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '离线点阵视频文件传输 · v1.0.5',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildInfoSection(
+                  context,
+                  title: '工作原理',
+                  content:
+                      'PixelDrop 将任意二进制文件按字节映射为彩色像素点阵生成 MP4 视频。接收方只需播放或导入视频即可逆向提取文件，无需数据线与局域网。',
+                ),
+                const SizedBox(height: 16),
+                _buildInfoSection(
+                  context,
+                  title: '规格选择',
+                  content:
+                      '• 4x4 像素（高密）：单帧容量大，适合原画保存、网盘中转与邮件发送。\n• 8x8 像素（抗噪）：像素方块更大，耐受社交软件二次压缩。',
+                ),
+                const SizedBox(height: 16),
+                _buildInfoSection(
+                  context,
+                  title: '数据完整性',
+                  content:
+                      '内置帧级 CRC32 容错校验与全量 SHA-256 哈希校验。还原完成后自动对比指纹，确保与源文件比特级完全一致。',
+                ),
+                const SizedBox(height: 16),
+                _buildInfoSection(
+                  context,
+                  title: '存储位置',
+                  content:
+                      '• 视频生成目录: Download/PixelDrop/Videos\n• 文件还原目录: Download/PixelDrop/Restored',
+                ),
+                const SizedBox(height: 24),
+                FilledButton.tonal(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('我知道了'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoSection(
+    BuildContext context, {
+    required String title,
+    required String content,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          content,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+      ],
     );
   }
 
@@ -59,19 +146,32 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 16,
         title: const Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.blur_on, size: 28),
-            SizedBox(width: 8),
-            Text('PixelDrop', style: TextStyle(fontWeight: FontWeight.bold)),
+            DotMatrixLogo(size: 24),
+            SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                'PixelDrop',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
-            tooltip: '原理说明',
-            onPressed: _showInfoDialog,
+            icon: const Icon(Icons.info_outline_rounded),
+            tooltip: '使用说明',
+            onPressed: _showInfoSheet,
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: IndexedStack(
@@ -83,14 +183,14 @@ class _HomeScreenState extends State<HomeScreen> {
         onDestinationSelected: (idx) => setState(() => _currentIndex = idx),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.video_call_outlined),
-            selectedIcon: Icon(Icons.video_call),
-            label: '制作传输视频',
+            icon: Icon(Icons.file_upload_outlined),
+            selectedIcon: Icon(Icons.file_upload_rounded),
+            label: '文件转视频',
           ),
           NavigationDestination(
-            icon: Icon(Icons.restore_page_outlined),
-            selectedIcon: Icon(Icons.restore_page),
-            label: '还原视频文件',
+            icon: Icon(Icons.video_file_outlined),
+            selectedIcon: Icon(Icons.video_file_rounded),
+            label: '视频转文件',
           ),
         ],
       ),

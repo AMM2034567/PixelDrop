@@ -49,31 +49,36 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.4
-          name: "PixelDrop v1.0.4 (Android APK - 修复中大型多帧文件还原 & 真正后台常驻保活)"
+          tag_name: v1.0.5
+          name: "PixelDrop v1.0.5 (Android APK - 全新 MD3 质感界面 & 1:1 专属点阵图标)"
           draft: false
           prerelease: false
           body: |
-            ## 🚀 PixelDrop v1.0.4 紧急重磅修复版
+            ## 🎨 PixelDrop v1.0.5 全新界面重构与 1:1 点阵图标升级版
 
-            ### 🛠️ 关键修复：中大型多分块文件 100% 完美还原
-            - **排查根因**：之前版本中高频内存复用缓冲区在多帧遍历时导致已收集的所有分块指向了同一块动态内存，从而在超过 1 帧的文件还原时触发了 `FormatException: Invalid UTF-8 byte`。
-            - **彻底修复**：在帧协议解析与多帧归集层强制进行独立数据深拷贝（`Uint8List.fromList`），彻底解决多分块拼装错位问题，**中型与大型文件（如 10MB+ MP3、视频、文档）全部 100% SHA-256 位精确校验还原！**
+            ### 🖌️ 1:1 严格还原专属点阵图标
+            - **桌面图标**：严格按参考图 1:1 几何生成 24 点同心矩阵，提供标准方圆与原生圆形图标（`ic_launcher.png` / `ic_launcher_round.png`），适配各类手机桌面。
+            - **状态栏通知小图标**：提供专用的纯白透底剪影小图标（`ic_notification.png`），避免 Android 8.0+ 状态栏变实心白方块或系统通知崩溃。
+            - **应用内矢量组件**：新增无损高保真 `DotMatrixLogo` 组件，常驻 AppBar 与说明弹窗。
 
-            ### 🛡️ 真正的安卓原生前台保活服务（Foreground Service）
-            - **杜绝杀后台**：引入标准安卓原生前台服务（`PixelDropService`）并持有系统级 `PARTIAL_WAKE_LOCK`，应用在切到桌面、刷抖音/微信甚至手机锁屏时，**后台进程依然持续高速编码和还原，绝不被系统冻结或杀后台！**
-            - **通知栏直达**：前台常驻通知实时联动最新任务百分比，点击通知栏即可随时唤回应用前台。
+            ### ✨ 深度去 AI 味与纯正 Material Design 3 体验
+            - **克制优雅的视觉基调**：摒弃粗制滥造的紫粉霓虹与浮夸光效，换用典雅沉稳的 Slate Charcoal（板岩灰蓝）MD3 质感设计。
+            - **符合直觉的人机流程**：
+              - 选文件卡片新增【清除选择】（`✕`）与【更换】功能；
+              - 编码/解码规格采用纯粹清晰的 `SegmentedButton`；
+              - 移除一切虚假科技感黑话文案，回归清晰明确的标准工程用语；
+              - 修复 320dp 窄屏与系统超大字体无障碍缩放下的布局溢出。
 
-            ### ⚡ 其他保留亮点
-            - 原生 Raw 灰度直读秒级解析架构（数千帧视频几秒内还原完毕）
-            - 自动归档至公共目录 `Download/PixelDrop/Videos` 与 `Restored`，并有一键【定位保存目录】
-            - 编码完成展示 SHA-256 并支持一键复制
-            - 全新专属点阵科技图标
+            ### ⚡ 核心能力无损保留
+            - Raw 灰度直读秒级秒级解析架构（数千帧数秒还原）
+            - 100% SHA-256 位精确校验与一键复制哈希
+            - 安卓原生前台保活服务 + 唤醒锁（锁屏与切后台满速处理不中断）
+            - 自动归档至系统公共下载目录 `Download/PixelDrop`
 
             ### 📥 下载安装
             请在下方 Assets 中下载适合你手机的安装包：
             - **`app-arm64-v8a-release.apk`**（**强烈推荐**，适用于绝大多数安卓手机）
-            - `app-armeabi-v7a-release.apk`（适用于极老旧的 32 位安卓机型）
+            - `app-armeabi-v7a-release.apk`（适用于老旧的 32 位安卓机型）
           files: |
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk

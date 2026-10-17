@@ -278,7 +278,7 @@ class PixelEncoderService {
         sha256: fileSha256,
       );
     } else {
-      final rawLogs = await session.getLogsAsString() ?? '';
+      final rawLogs = await session.getLogsAsString();
       final lines = rawLogs.split('\n').where((l) => l.trim().isNotEmpty).toList();
       final tailLogs = lines.length > 8 ? lines.sublist(lines.length - 8).join('\n') : rawLogs;
       throw Exception('FFmpeg 编码失败 (Code: $returnCode):\n$tailLogs');

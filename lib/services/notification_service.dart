@@ -17,7 +17,7 @@ class NotificationService {
   static Future<void> init() async {
     if (_isInitialized) return;
 
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@drawable/ic_notification');
     const initSettings = InitializationSettings(android: androidInit);
 
     await _plugin.initialize(initSettings);
@@ -62,7 +62,7 @@ class NotificationService {
         progress: progress,
         ongoing: true,
         autoCancel: false,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
       );
 
       await _plugin.show(
@@ -88,7 +88,7 @@ class NotificationService {
         priority: Priority.high,
         ongoing: false,
         autoCancel: true,
-        icon: '@mipmap/ic_launcher',
+        icon: '@drawable/ic_notification',
       );
 
       await _plugin.show(
