@@ -50,17 +50,6 @@ class PixelDropApp extends StatelessWidget {
           backgroundColor: lightColorScheme.surface,
           foregroundColor: lightColorScheme.onSurface,
         ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: lightColorScheme.outlineVariant.withOpacity(0.5),
-            ),
-          ),
-          color: lightColorScheme.surfaceContainerLow,
-          margin: EdgeInsets.zero,
-        ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(48),
@@ -121,17 +110,6 @@ class PixelDropApp extends StatelessWidget {
           scrolledUnderElevation: 0,
           backgroundColor: darkColorScheme.surface,
           foregroundColor: darkColorScheme.onSurface,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: darkColorScheme.outlineVariant.withOpacity(0.4),
-            ),
-          ),
-          color: darkColorScheme.surfaceContainerLow,
-          margin: EdgeInsets.zero,
         ),
         filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
