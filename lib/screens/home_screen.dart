@@ -176,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 720;
+          final isWide = constraints.maxWidth >= 640;
           if (isWide) {
             return Row(
               children: [
@@ -216,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       bottomNavigationBar: LayoutBuilder(
         builder: (context, constraints) {
-          if (constraints.maxWidth >= 720) {
+          if (constraints.maxWidth >= 640) {
             return const SizedBox.shrink();
           }
           return NavigationBar(

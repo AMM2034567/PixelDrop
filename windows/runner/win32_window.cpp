@@ -234,8 +234,8 @@ Win32Window::MessageHandler(HWND hwnd,
         dpi = 96;
       }
       double scale_factor = dpi / 96.0;
-      info->ptMinTrackSize.x = Scale(800, scale_factor);
-      info->ptMinTrackSize.y = Scale(560, scale_factor);
+      info->ptMinTrackSize.x = Scale(680, scale_factor);
+      info->ptMinTrackSize.y = Scale(480, scale_factor);
       return 0;
     }
 

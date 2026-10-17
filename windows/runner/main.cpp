@@ -26,7 +26,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(-1, -1);
-  Win32Window::Size size(1120, 760);
+  Win32Window::Size size(860, 620);
   if (!window.Create(L"PixelDrop - \u79BB\u7EBF\u70B9\u9635\u89C6\u9891\u6587\u4EF6\u4F20\u8F93", origin, size)) {
     return EXIT_FAILURE;
   }

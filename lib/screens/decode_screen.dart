@@ -207,7 +207,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
           if (_isDragging)
             Positioned.fill(
               child: Container(
-                color: colorScheme.surface.withValues(alpha: 0.85),
+                color: colorScheme.surface.withOpacity(0.85),
                 child: Center(
                   child: Container(
                     margin: const EdgeInsets.all(24),
@@ -494,8 +494,8 @@ class _DecodeScreenState extends State<DecodeScreen> {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: isMatched
-              ? colorScheme.primary.withValues(alpha: 0.3)
-              : colorScheme.error.withValues(alpha: 0.5),
+              ? colorScheme.primary.withOpacity(0.3)
+              : colorScheme.error.withOpacity(0.5),
         ),
       ),
       child: Padding(
@@ -518,7 +518,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                       Text(
                         isMatched ? '文件还原成功' : '文件还原完成（校验不一致）',
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
+                           fontWeight: FontWeight.w700,
                           color: isMatched ? colorScheme.onSurface : colorScheme.error,
                         ),
                       ),
@@ -529,7 +529,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isMatched
                               ? colorScheme.onSurfaceVariant
-                              : colorScheme.error.withValues(alpha: 0.8),
+                              : colorScheme.error.withOpacity(0.8),
                         ),
                       ),
                     ],
@@ -578,9 +578,9 @@ class _DecodeScreenState extends State<DecodeScreen> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+                border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.4)),
               ),
               child: SelectableText(
                 _result!.sha256,
