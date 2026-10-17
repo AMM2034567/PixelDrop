@@ -82,20 +82,27 @@ jobs:
         shell: pwsh
         run: |
           $releaseDir = "build\windows\x64\runner\Release"
-          $ffmpegCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
-          if (-not $ffmpegCmd) {
-            Write-Host "ffmpeg not in PATH, installing via choco..."
+          
+          # Search for real standalone ffmpeg.exe (must NOT be a ~300KB Chocolatey ShimGen shim!)
+          $realFfmpeg = Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\ffmpeg" -Filter "ffmpeg.exe" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 10000000 } | Select-Object -First 1
+          if (-not $realFfmpeg) {
+            Write-Host "ffmpeg not in choco lib, installing via choco..."
             choco install ffmpeg --no-progress
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-            $ffmpegCmd = Get-Command ffmpeg -ErrorAction SilentlyContinue
+            $realFfmpeg = Get-ChildItem -Path "C:\ProgramData\chocolatey\lib\ffmpeg" -Filter "ffmpeg.exe" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 10000000 } | Select-Object -First 1
           }
-          if ($ffmpegCmd) {
-            Write-Host "Found ffmpeg at $($ffmpegCmd.Source)"
-            Copy-Item $ffmpegCmd.Source -Destination "$releaseDir\ffmpeg.exe" -Force
-          } elseif (Test-Path "C:\ProgramData\chocolatey\bin\ffmpeg.exe") {
-            Copy-Item "C:\ProgramData\chocolatey\bin\ffmpeg.exe" -Destination "$releaseDir\ffmpeg.exe" -Force
+
+          if ($realFfmpeg) {
+            Write-Host "Found real standalone FFmpeg binary at $($realFfmpeg.FullName) (Size: $($realFfmpeg.Length) bytes)"
+            Copy-Item $realFfmpeg.FullName -Destination "$releaseDir\ffmpeg.exe" -Force
           } else {
-            Write-Warning "FFmpeg binary could not be found to bundle into release"
+            # Search system for any standalone ffmpeg.exe larger than 10MB
+            $fallback = Get-ChildItem -Path "C:\", "D:\" -Filter "ffmpeg.exe" -Recurse -File -Depth 5 -ErrorAction SilentlyContinue | Where-Object { $_.Length -gt 10000000 } | Select-Object -First 1
+            if ($fallback) {
+              Write-Host "Found fallback real FFmpeg binary at $($fallback.FullName) (Size: $($fallback.Length) bytes)"
+              Copy-Item $fallback.FullName -Destination "$releaseDir\ffmpeg.exe" -Force
+            } else {
+              throw "Real standalone FFmpeg executable could not be found to bundle into release package!"
+            }
           }
           
           # Prepare distribution folder

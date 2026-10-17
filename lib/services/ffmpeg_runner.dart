@@ -14,19 +14,37 @@ class FfmpegRunner {
   static String? _cachedFfmpegCliPath;
   static bool _hasProbedCli = false;
 
+  /// Validates that the FFmpeg executable at [path] can be spawned and responds to `-version`.
+  static Future<bool> _isValidFfmpeg(String path) async {
+    try {
+      final res = await Process.run(path, ['-version'])
+          .timeout(const Duration(seconds: 2));
+      return res.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Probes for a valid local FFmpeg CLI executable on Desktop.
   static Future<String?> getFfmpegCliPath() async {
-    if (_hasProbedCli) return _cachedFfmpegCliPath;
+    if (_hasProbedCli && _cachedFfmpegCliPath != null) return _cachedFfmpegCliPath;
     _hasProbedCli = true;
 
     if (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS) {
       return null;
     }
 
+    Future<bool> checkAndCache(String p) async {
+      if (await File(p).exists() && await _isValidFfmpeg(p)) {
+        _cachedFfmpegCliPath = p;
+        return true;
+      }
+      return false;
+    }
+
     // 1. Environment variable override
     final envFfmpeg = Platform.environment['FFMPEG_PATH'];
-    if (envFfmpeg != null && envFfmpeg.isNotEmpty && await File(envFfmpeg).exists()) {
-      _cachedFfmpegCliPath = envFfmpeg;
+    if (envFfmpeg != null && envFfmpeg.isNotEmpty && await checkAndCache(envFfmpeg)) {
       return _cachedFfmpegCliPath;
     }
 
@@ -39,8 +57,7 @@ class FfmpegRunner {
       '${Directory.current.path}\\windows\\ffmpeg-kit\\bin\\ffmpeg.exe',
     ];
     for (final p in nearbyPaths) {
-      if (await File(p).exists()) {
-        _cachedFfmpegCliPath = p;
+      if (await checkAndCache(p)) {
         return _cachedFfmpegCliPath;
       }
     }
@@ -59,8 +76,7 @@ class FfmpegRunner {
       if (programFiles != null) '$programFiles\\ffmpeg\\bin\\ffmpeg.exe',
     ];
     for (final p in pmPaths) {
-      if (await File(p).exists()) {
-        _cachedFfmpegCliPath = p;
+      if (await checkAndCache(p)) {
         return _cachedFfmpegCliPath;
       }
     }
@@ -76,8 +92,7 @@ class FfmpegRunner {
     ];
 
     for (final p in candidatePaths) {
-      if (await File(p).exists()) {
-        _cachedFfmpegCliPath = p;
+      if (await checkAndCache(p)) {
         return _cachedFfmpegCliPath;
       }
     }
@@ -92,22 +107,20 @@ class FfmpegRunner {
               .split(RegExp(r'[\r\n]+'))
               .where((s) => s.trim().isNotEmpty)
               .toList();
-          if (outLines.isNotEmpty && await File(outLines.first.trim()).exists()) {
-            _cachedFfmpegCliPath = outLines.first.trim();
-            return _cachedFfmpegCliPath;
+          for (final line in outLines) {
+            if (await checkAndCache(line.trim())) {
+              return _cachedFfmpegCliPath;
+            }
           }
         }
       }
     } catch (_) {}
 
     // 6. Test if 'ffmpeg' directly runs from system PATH
-    try {
-      final testRun = await Process.run('ffmpeg', ['-version']);
-      if (testRun.exitCode == 0) {
-        _cachedFfmpegCliPath = 'ffmpeg';
-        return _cachedFfmpegCliPath;
-      }
-    } catch (_) {}
+    if (await _isValidFfmpeg('ffmpeg')) {
+      _cachedFfmpegCliPath = 'ffmpeg';
+      return _cachedFfmpegCliPath;
+    }
 
     return null;
   }
@@ -121,12 +134,28 @@ class FfmpegRunner {
     final cliPath = await getFfmpegCliPath();
 
     if (cliPath != null) {
-      await _executeViaCli(
-        cliPath: cliPath,
-        args: args,
-        totalExpectedFrames: totalExpectedFrames,
-        onProgress: onProgress,
-      );
+      try {
+        await _executeViaCli(
+          cliPath: cliPath,
+          args: args,
+          totalExpectedFrames: totalExpectedFrames,
+          onProgress: onProgress,
+        );
+        return;
+      } catch (cliError) {
+        // Fallback to FFmpegKit if native CLI fails
+        _cachedFfmpegCliPath = null;
+        try {
+          await _executeViaKit(
+            args: args,
+            totalExpectedFrames: totalExpectedFrames,
+            onProgress: onProgress,
+          );
+          return;
+        } catch (_) {
+          rethrow;
+        }
+      }
     } else {
       await _executeViaKit(
         args: args,
