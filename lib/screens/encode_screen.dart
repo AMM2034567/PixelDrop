@@ -400,12 +400,12 @@ class _EncodeScreenState extends State<EncodeScreen> {
                   ButtonSegment<int>(
                     value: 4,
                     icon: Icon(Icons.grid_4x4_rounded),
-                    label: Text('4x4 像素（高密）'),
+                    label: Text('4x4 像素'),
                   ),
                   ButtonSegment<int>(
                     value: 8,
                     icon: Icon(Icons.grid_view_rounded),
-                    label: Text('8x8 像素（抗噪）'),
+                    label: Text('8x8 像素'),
                   ),
                 ],
                 selected: {_blockSize},
@@ -417,8 +417,8 @@ class _EncodeScreenState extends State<EncodeScreen> {
             const SizedBox(height: 10),
             Text(
               _blockSize == 4
-                  ? '4x4 模式：单帧容量高，适合网盘中转、原画存储与邮件传输'
-                  : '8x8 模式：色块更大容错率高，适合应对社交软件转发时的画面压缩',
+                  ? '4x4 规格：单帧容量更大，生成视频更短'
+                  : '8x8 规格：色块更大容错率更高，抗画面压缩与噪点',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -469,7 +469,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 minHeight: 6,
               ),
             ),
-            if (_isEncoding) ...[
+            if (Platform.isAndroid && _isEncoding) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -481,7 +481,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '前台守护服务运行中，切至后台不会中断',
+                      '已开启后台保活，切换应用不影响生成',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

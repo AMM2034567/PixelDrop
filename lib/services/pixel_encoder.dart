@@ -114,7 +114,7 @@ class PixelEncoderService {
     final origSize = rawBytes.length;
     final fileSha256 = sha256.convert(rawBytes).toString();
 
-    onProgress?.call(0.02, '正在自适应 Gzip 压缩...');
+    onProgress?.call(0.02, '正在压缩文件数据...');
 
     // 1. Gzip compression
     final compressedBytes = Uint8List.fromList(GZipEncoder().encode(rawBytes)!);
@@ -160,7 +160,7 @@ class PixelEncoderService {
     final framesDir = Directory('${tempDir.path}/pixel_enc_$sessionTimestamp');
     await framesDir.create(recursive: true);
 
-    onProgress?.call(0.05, '正在生成点阵帧 (共 $totalChunks 分块)...');
+    onProgress?.call(0.05, '正在生成点阵帧 ($totalChunks 帧)...');
 
     final receivePort = ReceivePort();
     await Isolate.spawn(
@@ -181,11 +181,11 @@ class PixelEncoderService {
       if (msg is int) {
         final progressRatio = msg / totalChunks;
         final currentP = 0.05 + 0.45 * progressRatio;
-        final statusText = '生成点阵帧: $msg / $totalChunks 分块 (${(progressRatio * 100).toInt()}%)';
+        final statusText = '生成点阵帧: $msg / $totalChunks (${(progressRatio * 100).toInt()}%)';
         onProgress?.call(currentP, statusText);
         await NotificationService.showProgress(
           id: 101,
-          title: 'PixelDrop 正在制作视频...',
+          title: 'PixelDrop 正在生成视频...',
           body: statusText,
           progress: (currentP * 100).toInt(),
           maxProgress: 100,
@@ -196,7 +196,7 @@ class PixelEncoderService {
     }
 
     // 5. FFmpeg encode to MP4 with hardware scaling and real-time statistics
-    onProgress?.call(0.52, 'FFmpeg 正在压制 MP4 视频...');
+    onProgress?.call(0.52, '正在压制 MP4 视频...');
     final tempOutFile = File('${tempDir.path}/temp_enc_$sessionTimestamp.mp4');
     final totalTargetFrames = totalChunks * holdFrames;
 
@@ -231,11 +231,11 @@ class PixelEncoderService {
           if (f > 0 && totalTargetFrames > 0) {
             final r = ratio ?? (f / totalTargetFrames).clamp(0.0, 1.0);
             final currentP = 0.52 + 0.45 * r;
-            final statusText = 'FFmpeg 硬件压制: $f / $totalTargetFrames 帧 (${(r * 100).toInt()}%)';
+            final statusText = '正在压制视频: $f / $totalTargetFrames 帧 (${(r * 100).toInt()}%)';
             onProgress?.call(currentP, statusText);
             NotificationService.showProgress(
               id: 101,
-              title: 'PixelDrop 正在压制视频...',
+              title: 'PixelDrop 正在生成视频...',
               body: statusText,
               progress: (currentP * 100).toInt(),
               maxProgress: 100,
@@ -267,10 +267,10 @@ class PixelEncoderService {
         await tempOutFile.delete();
       } catch (_) {}
 
-      onProgress?.call(1.0, '视频生成完毕！');
+      onProgress?.call(1.0, '视频已生成');
       await NotificationService.showComplete(
         id: 101,
-        title: '🎉 传输视频制作完成！',
+        title: '视频生成完成',
         body: '已保存至 Download/PixelDrop/Videos',
       );
 

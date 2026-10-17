@@ -400,7 +400,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                   ButtonSegment<int>(
                     value: 4,
                     icon: Icon(Icons.grid_4x4_rounded),
-                    label: Text('4x4 采样（默认）'),
+                    label: Text('4x4 采样'),
                   ),
                   ButtonSegment<int>(
                     value: 8,
@@ -417,8 +417,8 @@ class _DecodeScreenState extends State<DecodeScreen> {
             const SizedBox(height: 10),
             Text(
               _blockSize == 4
-                  ? '对应 4x4 高密模式制作的视频进行高精解码'
-                  : '对应 8x8 抗噪模式制作的视频进行容错解码',
+                  ? '解析 4x4 规格制作的点阵视频'
+                  : '解析 8x8 规格制作的点阵视频',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -469,7 +469,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                 minHeight: 6,
               ),
             ),
-            if (_isDecoding) ...[
+            if (Platform.isAndroid && _isDecoding) ...[
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -481,7 +481,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '前台守护服务运行中，切至后台不会中断',
+                      '已开启后台保活，切换应用不影响还原',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                       ),

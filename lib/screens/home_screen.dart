@@ -78,28 +78,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   context,
                   title: '工作原理',
                   content:
-                      'PixelDrop 将任意二进制文件按字节映射为彩色像素点阵生成 MP4 视频。接收方只需播放或导入视频即可逆向提取文件，无需数据线与局域网。',
+                      'PixelDrop 将二进制文件字节映射为黑白像素点阵并生成 MP4 视频。接收端导入该视频即可逆向解析提取原文件，支持离线无网传输。',
                 ),
                 const SizedBox(height: 16),
                 _buildInfoSection(
                   context,
                   title: '规格选择',
                   content:
-                      '• 4x4 像素（高密）：单帧容量大，适合原画保存、网盘中转与邮件发送。\n• 8x8 像素（抗噪）：像素方块更大，耐受社交软件二次压缩。',
+                      '• 4x4 像素：单帧数据容量更大，生成视频更短，适合网盘中转与原画保存。\n• 8x8 像素：点阵方块更大，抗噪容错率更高，耐受社交软件二次画面压缩。',
                 ),
                 const SizedBox(height: 16),
                 _buildInfoSection(
                   context,
                   title: '数据完整性',
                   content:
-                      '内置帧级 CRC32 容错校验与全量 SHA-256 哈希校验。还原完成后自动对比指纹，确保与源文件比特级完全一致。',
+                      '内置帧级校验与 SHA-256 全量校验，文件还原后自动比对哈希值，确保文件完全一致。',
                 ),
                 const SizedBox(height: 16),
                 _buildInfoSection(
                   context,
                   title: '存储位置',
                   content:
-                      '• 视频生成目录: Download/PixelDrop/Videos\n• 文件还原目录: Download/PixelDrop/Restored',
+                      '• 视频目录: Downloads/PixelDrop/Videos\n• 还原目录: Downloads/PixelDrop/Restored',
                 ),
                 const SizedBox(height: 24),
                 FilledButton.tonal(

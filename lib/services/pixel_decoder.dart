@@ -144,14 +144,14 @@ class PixelDecoderService {
     final rawFramesFile = File('${tempDir.path}/raw_frames_$timestamp.raw');
 
     try {
-      onProgress?.call(0.02, '正在准备视频缓存...');
+      onProgress?.call(0.02, '正在读取视频文件...');
       await videoFile.copy(safeInputFile.path);
 
-      onProgress?.call(0.05, 'FFmpeg 原生硬件极速解流画面中...');
+      onProgress?.call(0.05, '正在解码视频画面...');
       await NotificationService.showProgress(
         id: 102,
         title: 'PixelDrop 正在还原文件...',
-        body: 'FFmpeg 原生硬件极速解流画面中...',
+        body: '正在解码视频画面...',
         progress: 5,
         maxProgress: 100,
         force: true,
@@ -177,7 +177,7 @@ class PixelDecoderService {
         args: args,
         onProgress: (f, _) {
           if (f > 0) {
-            final statusText = 'FFmpeg 极速解流画面: $f 帧';
+            final statusText = '正在提取视频帧: $f 帧';
             onProgress?.call(0.05 + 0.35 * (f / 1500).clamp(0.0, 1.0), statusText);
             NotificationService.showProgress(
               id: 102,
@@ -200,7 +200,7 @@ class PixelDecoderService {
         throw Exception('提取的画面帧数为 0');
       }
 
-      onProgress?.call(0.42, '画面提取出 $totalFrames 帧，后台并发解析黑白矩阵...');
+      onProgress?.call(0.42, '已提取 $totalFrames 帧画面，正在解析点阵数据...');
 
       // 2. High-speed memory scan in background Isolate
       final receivePort = ReceivePort();
@@ -224,10 +224,10 @@ class PixelDecoderService {
           String status;
           if (exp != null && exp > 0) {
             p = 0.42 + 0.45 * (msg.collectedChunks / exp);
-            status = '已解析收集分块: ${msg.collectedChunks} / $exp (${(msg.collectedChunks / exp * 100).toInt()}%)';
+            status = '解析进度: ${msg.collectedChunks} / $exp 块 (${(msg.collectedChunks / exp * 100).toInt()}%)';
           } else {
             p = 0.42 + 0.45 * (msg.currentFrame / msg.totalFrames);
-            status = '正在扫描点阵帧: ${msg.currentFrame} / ${msg.totalFrames}';
+            status = '正在解析: ${msg.currentFrame} / ${msg.totalFrames} 帧';
           }
           onProgress?.call(p, status);
           await NotificationService.showProgress(
@@ -250,7 +250,7 @@ class PixelDecoderService {
         );
       }
 
-      onProgress?.call(0.88, '正在拼装数据流并进行元数据解包...');
+      onProgress?.call(0.88, '正在校验并组装文件数据...');
 
       // 3. Reconstruct full stream
       final totalLen = collected.values.fold<int>(0, (sum, c) => sum + c.length);
@@ -274,7 +274,7 @@ class PixelDecoderService {
       }
 
       // 5. SHA-256 integrity verification
-      onProgress?.call(0.96, '正在比对 SHA-256 全局指纹...');
+      onProgress?.call(0.96, '正在校验 SHA-256 完整性...');
       final actualHash = sha256.convert(restoredBytes).toString();
       final isMatched = actualHash.toLowerCase() == meta.sha256.toLowerCase();
 
@@ -294,10 +294,10 @@ class PixelDecoderService {
       final savedFile = File(targetPath);
       await savedFile.writeAsBytes(restoredBytes, flush: true);
 
-      onProgress?.call(1.0, '还原成功！');
+      onProgress?.call(1.0, '文件已还原');
       await NotificationService.showComplete(
         id: 102,
-        title: '🎉 文件还原成功 (100% 吻合)！',
+        title: '文件还原完成',
         body: '${meta.filename} 已保存至 Download/PixelDrop/Restored',
       );
 

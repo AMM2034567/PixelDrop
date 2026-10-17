@@ -23,14 +23,14 @@ void main() {
     expect(find.byType(EncodeScreen), findsOneWidget);
     expect(find.text('选择待转换文件'), findsOneWidget);
     expect(find.text('编码规格'), findsOneWidget);
-    expect(find.text('4x4 像素（高密）'), findsOneWidget);
-    expect(find.text('8x8 像素（抗噪）'), findsOneWidget);
+    expect(find.text('4x4 像素'), findsOneWidget);
+    expect(find.text('8x8 像素'), findsOneWidget);
     expect(find.text('开始生成视频'), findsOneWidget);
 
     // Test SegmentedButton toggle in EncodeScreen
-    await tester.tap(find.text('8x8 像素（抗噪）'));
+    await tester.tap(find.text('8x8 像素'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('8x8 模式：色块更大容错率高'), findsOneWidget);
+    expect(find.textContaining('8x8 规格：色块更大容错率更高'), findsOneWidget);
 
     // Switch to DecodeScreen
     await tester.tap(find.text('视频转文件'));
@@ -40,14 +40,14 @@ void main() {
     expect(find.byType(DecodeScreen), findsOneWidget);
     expect(find.text('选择待还原视频'), findsOneWidget);
     expect(find.text('解析采样规格'), findsOneWidget);
-    expect(find.text('4x4 采样（默认）'), findsOneWidget);
+    expect(find.text('4x4 采样'), findsOneWidget);
     expect(find.text('8x8 采样'), findsOneWidget);
     expect(find.text('开始还原文件'), findsOneWidget);
 
     // Test SegmentedButton toggle in DecodeScreen
     await tester.tap(find.text('8x8 采样'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('对应 8x8 抗噪模式制作的视频进行容错解码'), findsOneWidget);
+    expect(find.textContaining('解析 8x8 规格制作的点阵视频'), findsOneWidget);
 
     // Switch to HistoryScreen
     await tester.tap(find.text('传输历史'));
