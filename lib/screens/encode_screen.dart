@@ -9,6 +9,8 @@ import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_encoder.dart';
 import '../services/storage_helper.dart';
+import '../models/history_record.dart';
+import '../services/history_service.dart';
 
 class EncodeScreen extends StatefulWidget {
   const EncodeScreen({super.key});
@@ -80,6 +82,17 @@ class _EncodeScreenState extends State<EncodeScreen> {
         _isEncoding = false;
         _statusText = '视频制作完成';
       });
+
+      // Save to local history
+      HistoryService.addRecord(
+        type: HistoryType.encode,
+        fileName: res.filename,
+        targetPath: res.videoFile.path,
+        originalSize: res.originalSize,
+        outputSize: res.videoSize,
+        sha256: res.sha256,
+        blockSize: _blockSize,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

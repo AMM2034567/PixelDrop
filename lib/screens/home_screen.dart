@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/dot_matrix_logo.dart';
 import 'encode_screen.dart';
 import 'decode_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,6 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = const [
     EncodeScreen(),
     DecodeScreen(),
+    HistoryScreen(),
   ];
 
   void _showInfoSheet() {
@@ -196,6 +198,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       selectedIcon: Icon(Icons.video_file_rounded),
                       label: Text('视频转文件'),
                     ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.history_rounded),
+                      selectedIcon: Icon(Icons.history_edu_rounded),
+                      label: Text('传输历史'),
+                    ),
                   ],
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
@@ -232,6 +239,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 icon: Icon(Icons.video_file_outlined),
                 selectedIcon: Icon(Icons.video_file_rounded),
                 label: '视频转文件',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.history_rounded),
+                selectedIcon: Icon(Icons.history_edu_rounded),
+                label: '传输历史',
               ),
             ],
           );

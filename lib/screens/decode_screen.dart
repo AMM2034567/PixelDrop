@@ -9,6 +9,8 @@ import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_decoder.dart';
 import '../services/storage_helper.dart';
+import '../models/history_record.dart';
+import '../services/history_service.dart';
 
 class DecodeScreen extends StatefulWidget {
   const DecodeScreen({super.key});
@@ -80,6 +82,17 @@ class _DecodeScreenState extends State<DecodeScreen> {
         _isDecoding = false;
         _statusText = '还原完成';
       });
+
+      // Save to local history
+      HistoryService.addRecord(
+        type: HistoryType.decode,
+        fileName: res.filename,
+        targetPath: res.restoredFile.path,
+        originalSize: res.fileSize,
+        outputSize: res.fileSize,
+        sha256: res.sha256,
+        blockSize: _blockSize,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

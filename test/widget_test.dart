@@ -49,6 +49,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('对应 8x8 抗噪模式制作的视频进行容错解码'), findsOneWidget);
 
+    // Switch to HistoryScreen
+    await tester.tap(find.text('传输历史'));
+    await tester.pumpAndSettle();
+    expect(find.text('暂无传输历史'), findsOneWidget);
+
     // Open Info Sheet
     await tester.tap(find.byIcon(Icons.info_outline_rounded));
     await tester.pumpAndSettle();

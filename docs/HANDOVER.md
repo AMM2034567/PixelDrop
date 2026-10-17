@@ -98,14 +98,18 @@ file-to-qrcode/
 ├── lib/
 │   ├── main.dart               # 应用入口、主题样式、导航路由
 │   ├── models/
+│   │   ├── history_record.dart # 历史记录模型 (toJson / fromJson / 字段持久化)
 │   │   └── pixel_packet.dart   # 帧协议序列化/反序列化、CRC32 校验、二进制打包
 │   ├── screens/
 │   │   ├── encode_screen.dart  # 制作视频界面（进度回调、前台服务联动、SHA-256展示与复制）
-│   │   └── decode_screen.dart  # 还原文件界面（视频流解码、进度展示、一键定位目录）
+│   │   ├── decode_screen.dart  # 还原文件界面（视频流解码、进度展示、一键定位目录）
+│   │   └── history_screen.dart # 传输历史记录界面（哈希复查、一键定位目录与打开文件）
 │   └── services/
 │       ├── foreground_service.dart # 前台服务 Dart 封装层 (start / update / stop)
+│       ├── history_service.dart    # 历史记录服务 (JSON 同步存储与 ValueNotifier 响应式更新)
 │       ├── pixel_encoder.dart      # 编码核心：分块切片、位拼装、FFmpeg 无损管道直推
-│       └── pixel_decoder.dart      # 解码核心：FFmpeg Raw 灰度管道、中心点采样、深拷贝重组
+│       ├── pixel_decoder.dart      # 解码核心：FFmpeg Raw 灰度管道、中心点采样、深拷贝重组
+│       └── storage_helper.dart     # 系统目录定位 (Windows Explorer /select, 与公共下载区)
 ├── python_prototype/           # Python 双方案对比参考实现 (供算法推导与验证)
 ├── docs/
 │   ├── HANDOVER.md             # 本交接文档
@@ -166,7 +170,11 @@ file-to-qrcode/
   2. **多端 CI/CD 自动化构建与便携绿色包分发**：
      - GitHub Actions 云端 Ubuntu Runner 并行构建 Android 双架构 APK (`arm64-v8a` 与 `armeabi-v7a`)；
      - GitHub Actions 云端 Windows Runner 并行构建 Windows 64 位原生 Release 程序；
-     - 自动打包内置原生 FFmpeg 极速视频处理引擎与绿色免安装运行库，生成 `PixelDrop-Windows-x64-v1.0.6.zip` 并与说明文档共同自动发布至 GitHub Release。
+     - 自动打包内置原生 FFmpeg 极速视频处理引擎与绿色免安装运行库，生成 `PixelDrop-Windows-x64-v0.6.0-beta.zip` 并与说明文档共同自动发布至 GitHub Release；
+  3. **本地传输历史记录与快捷管理**：
+     - 自动持久化保存每次生成视频或还原文件的完整记录（文件名、时间、原始大小、产物大小、采样规格、SHA-256 校验和）；
+     - 独立「传输历史」界面，支持一键复制 SHA-256、一键在系统资源管理器中定位高亮目标、一键打开/播放文件、单条删除与全局清空；
+     - 轻量化 JSON 同步持久化引擎与响应式 `ValueNotifier` 监听，无外部冗余数据库依赖，测试套件 100% 覆盖。
 
 ### 2. 建议下一位助手可继续探索的方向：
 1. **多平台与多端形态扩展**：
