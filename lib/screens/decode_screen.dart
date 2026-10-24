@@ -21,7 +21,7 @@ class DecodeScreen extends StatefulWidget {
 
 class _DecodeScreenState extends State<DecodeScreen> {
   File? _selectedVideo;
-  int _blockSize = 4;
+  int _blockSize = 4; // 2, 4, or 8
   bool _isDecoding = false;
   bool _isDragging = false;
   double _progress = 0.0;
@@ -398,6 +398,11 @@ class _DecodeScreenState extends State<DecodeScreen> {
                 showSelectedIcon: false,
                 segments: const [
                   ButtonSegment<int>(
+                    value: 2,
+                    icon: Icon(Icons.flash_on_rounded),
+                    label: Text('2x2 采样'),
+                  ),
+                  ButtonSegment<int>(
                     value: 4,
                     icon: Icon(Icons.grid_4x4_rounded),
                     label: Text('4x4 采样'),
@@ -416,9 +421,11 @@ class _DecodeScreenState extends State<DecodeScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              _blockSize == 4
-                  ? '解析 4x4 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）'
-                  : '解析 8x8 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）',
+              _blockSize == 2
+                  ? '解析 2x2 极速高密点阵视频（支持 1080p / 720p 分辨率自适应）'
+                  : _blockSize == 4
+                      ? '解析 4x4 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）'
+                      : '解析 8x8 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

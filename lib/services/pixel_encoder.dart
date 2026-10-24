@@ -121,7 +121,7 @@ class PixelEncoderService {
   static const int defaultHeight = 1080;
   static const int defaultFps = 30;
   static const int defaultHoldFrames = 1;
-  static const int defaultCrf = 18;
+  static const int defaultCrf = 24;
 
   // Preserved for backwards compatibility
   static const int width = 1280;
@@ -246,8 +246,6 @@ class PixelEncoderService {
       '$crf',
       '-preset',
       'fast',
-      '-tune',
-      'stillimage',
       '-g',
       '300',
       '-pix_fmt',

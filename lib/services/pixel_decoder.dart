@@ -239,7 +239,7 @@ class PixelDecoderService {
         '-i',
         safeInputFile.path,
         '-vf',
-        'format=rgb24,scale=$gridW:$gridH:flags=neighbor',
+        'format=rgb24,scale=$gridW:$gridH:flags=area',
         '-f',
         'rawvideo',
         rawFramesFile.path,

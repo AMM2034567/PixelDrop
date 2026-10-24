@@ -205,15 +205,126 @@ void main() {
   });
 
   group('Windows Desktop End-to-End Pixel Encoding & Decoding', () {
+    test('2x2 Block Size: Ultra-dense multi-chunk file encodes and restores bit-exact with 100% SHA-256 match', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_2x2_multi_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create genuine multi-chunk uncompressible test payload (400 KB > 194 KB frame capacity)
+      final buffer = Uint8List(400 * 1024);
+      int lcg = 123456789;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        // 1. Encode to video using 2x2 ultra-dense block and default CRF (24)
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 2,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+        expect(encodeResult.sha256.isNotEmpty, isTrue);
+
+        // 2. Decode back from video with 2x2 block size
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: 2,
+        );
+
+        // 3. Verify bit-exact integrity & SHA-256
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        // Cleanup
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('2x2 Block Size at 720p Resolution: Encodes with hold=2 and auto-detects/restores bit-exact', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_2x2_720p_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create multi-chunk test payload (> 86 KB frame capacity for 2x2 720p, e.g. 180 KB)
+      final buffer = Uint8List(180 * 1024);
+      int lcg = 987654321;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 2,
+          width: 1280,
+          height: 720,
+          fps: 30,
+          holdFrames: 2,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+        expect(encodeResult.sha256.isNotEmpty, isTrue);
+
+        // Auto-detect resolution on decode with blockSize 2
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: 2,
+        );
+
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
     test('8x8 Block Size: Encodes test file to pixel MP4 and restores bit-exact with 100% SHA-256 match', () async {
       TestWidgetsFlutterBinding.ensureInitialized();
       final cli = await FfmpegRunner.getFfmpegCliPath();
       expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
 
       final tempDir = Directory.systemTemp;
-      final testFile = File('${tempDir.path}\\desktop_test_8x8_${DateTime.now().millisecondsSinceEpoch}.txt');
-      const originalContent = 'PixelDrop Windows Desktop Native 8x8 Block Noise Resistant Test: 像素矩阵传输协议 PXL1 2026!';
-      await testFile.writeAsString(originalContent, flush: true);
+      final testFile = File('${tempDir.path}\\desktop_test_8x8_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create multi-chunk test payload (> 12 KB frame capacity for 8x8 1080p, e.g. 25 KB)
+      final buffer = Uint8List(25 * 1024);
+      int lcg = 11223344;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
 
       try {
         // 1. Encode to video (using 8x8 block for noise resistance)
@@ -222,7 +333,6 @@ void main() {
           blockSize: 8,
           fps: 10,
           holdFrames: 2,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -237,8 +347,8 @@ void main() {
         // 3. Verify bit-exact integrity & SHA-256
         expect(decodeResult.isSha256Matched, isTrue);
         expect(decodeResult.sha256, equals(encodeResult.sha256));
-        final restoredContent = await decodeResult.restoredFile.readAsString();
-        expect(restoredContent, equals(originalContent));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
 
         // Cleanup
         try {
@@ -259,10 +369,12 @@ void main() {
 
       final tempDir = Directory.systemTemp;
       final testFile = File('${tempDir.path}\\desktop_test_4x4_multi_${DateTime.now().millisecondsSinceEpoch}.dat');
-      // Create multi-chunk test payload (12 KB with mixed repetitive and high entropy patterns)
-      final buffer = Uint8List(12 * 1024);
+      // Create genuine multi-chunk test payload (> 48.6 KB frame capacity for 4x4 1080p, e.g. 100 KB)
+      final buffer = Uint8List(100 * 1024);
+      int lcg = 55667788;
       for (int i = 0; i < buffer.length; i++) {
-        buffer[i] = (i * 37 + (i >> 3)) & 0xFF;
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
       }
       await testFile.writeAsBytes(buffer, flush: true);
 
@@ -273,7 +385,6 @@ void main() {
           blockSize: 4,
           fps: 10,
           holdFrames: 2,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -325,7 +436,6 @@ void main() {
           height: 1080,
           fps: 30,
           holdFrames: 1,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -373,7 +483,6 @@ void main() {
           height: 720,
           fps: 30,
           holdFrames: 1,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -416,7 +525,6 @@ void main() {
           height: 1080,
           fps: 30,
           holdFrames: 1,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -463,7 +571,6 @@ void main() {
           height: 720,
           fps: 30,
           holdFrames: 2,
-          crf: 18,
         );
 
         expect(encodeResult.videoFile.existsSync(), isTrue);
@@ -510,7 +617,6 @@ void main() {
           height: 720,
           fps: 10,
           holdFrames: 2,
-          crf: 18,
           version: 1, // Legacy monochrome
         );
 

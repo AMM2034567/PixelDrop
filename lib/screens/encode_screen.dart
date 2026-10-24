@@ -21,7 +21,7 @@ class EncodeScreen extends StatefulWidget {
 
 class _EncodeScreenState extends State<EncodeScreen> {
   File? _selectedFile;
-  int _blockSize = 4; // 4 or 8
+  int _blockSize = 4; // 2, 4, or 8
   int _resolution = 1080; // 1080 or 720
   int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
   bool _isEncoding = false;
@@ -67,7 +67,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         height: _resolution == 1080 ? 1080 : 720,
         fps: 30,
         holdFrames: _holdFrames,
-        crf: 18,
+        crf: PixelEncoderService.defaultCrf,
         onProgress: (p, status) {
           setState(() {
             _progress = p;
@@ -402,6 +402,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 showSelectedIcon: false,
                 segments: const [
                   ButtonSegment<int>(
+                    value: 2,
+                    icon: Icon(Icons.flash_on_rounded),
+                    label: Text('2x2 像素'),
+                  ),
+                  ButtonSegment<int>(
                     value: 4,
                     icon: Icon(Icons.grid_4x4_rounded),
                     label: Text('4x4 像素'),
@@ -420,9 +425,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              _blockSize == 4
-                  ? '4x4 规格：RGB 8色高密度点阵，30 fps 极速传输，生成视频更短'
-                  : '8x8 规格：色块更大容错率更高，抗画面压缩与噪点',
+              _blockSize == 2
+                  ? '2x2 规格（极速高密）：单帧约 ${_resolution == 1080 ? '194' : '86'} KB，视频体积减少 ~60%，耗时骤降'
+                  : _blockSize == 4
+                      ? '4x4 规格（标准均衡）：单帧约 ${_resolution == 1080 ? '47' : '21'} KB，默认推荐，传输效率与容错兼备'
+                      : '8x8 规格（高容错）：色块更大容错率更高，抗画面压缩与噪点（单帧约 ${_resolution == 1080 ? '12' : '5.4'} KB）',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -460,8 +467,8 @@ class _EncodeScreenState extends State<EncodeScreen> {
             const SizedBox(height: 10),
             Text(
               _resolution == 1080
-                  ? '1080p (1920x1080)：4x4 单帧约 47 KB，传输率约 1.4 MB/s'
-                  : '720p (1280x720)：4x4 单帧约 21 KB，兼容低配设备',
+                  ? '1080p (1920x1080)：全高清画质，单帧容量 ${_blockSize == 2 ? '约 194 KB' : _blockSize == 4 ? '约 47 KB' : '约 12 KB'}'
+                  : '720p (1280x720)：高清画质，单帧容量 ${_blockSize == 2 ? '约 86 KB' : _blockSize == 4 ? '约 21 KB' : '约 5.4 KB'}，兼容老旧设备',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
