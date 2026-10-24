@@ -24,11 +24,17 @@ class _EncodeScreenState extends State<EncodeScreen> {
   int _blockSize = 4; // 2, 4, or 8
   int _resolution = 1080; // 1080 or 720
   int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
+  int _workerThreads = 0; // 0 = 自动 (平台自适应)
   bool _isEncoding = false;
   bool _isDragging = false;
   double _progress = 0.0;
   String _statusText = '';
   EncodeResult? _result;
+
+  bool get _isDesktop => Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+  int get _cpuCount => Platform.numberOfProcessors;
+  int get _optimalWorkers => PixelEncoderService.getOptimalWorkerCount();
+  int get _activeWorkers => _workerThreads > 0 ? _workerThreads : _optimalWorkers;
 
   void _pickFile() async {
     final result = await FilePicker.platform.pickFiles();
@@ -68,6 +74,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         fps: 30,
         holdFrames: _holdFrames,
         crf: PixelEncoderService.defaultCrf,
+        workerCount: _workerThreads > 0 ? _workerThreads : null,
         onProgress: (p, status) {
           setState(() {
             _progress = p;
@@ -512,6 +519,108 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
+            const SizedBox(height: 14),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                Text(
+                  '多核并行加速',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text.rich(
+                    TextSpan(
+                      children: [
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Icon(
+                              Icons.bolt_rounded,
+                              size: 14,
+                              color: colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                        TextSpan(
+                          text: PixelEncoderService.getAcceleratorStatus(_activeWorkers),
+                        ),
+                      ],
+                    ),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onPrimaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  avatar: const Icon(Icons.auto_mode_rounded, size: 16),
+                  label: Text('自动 ($_optimalWorkers 线程)'),
+                  selected: _workerThreads == 0,
+                  onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = 0),
+                ),
+                ChoiceChip(
+                  avatar: const Icon(Icons.eco_outlined, size: 16),
+                  label: const Text('单线程 (节能)'),
+                  selected: _workerThreads == 1,
+                  onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = 1),
+                ),
+                if (_isDesktop && _cpuCount >= 4)
+                  ChoiceChip(
+                    avatar: const Icon(Icons.speed_rounded, size: 16),
+                    label: const Text('4 线程'),
+                    selected: _workerThreads == 4,
+                    onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = 4),
+                  ),
+                if (_isDesktop && _cpuCount >= 8)
+                  ChoiceChip(
+                    avatar: const Icon(Icons.rocket_launch_outlined, size: 16),
+                    label: const Text('8 线程'),
+                    selected: _workerThreads == 8,
+                    onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = 8),
+                  ),
+                if (_isDesktop && _cpuCount > 8)
+                  ChoiceChip(
+                    avatar: const Icon(Icons.flash_on_rounded, size: 16),
+                    label: Text('全核心 ($_cpuCount 线程)'),
+                    selected: _workerThreads == _cpuCount,
+                    onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = _cpuCount),
+                  ),
+                if (!_isDesktop && _cpuCount >= 4)
+                  ChoiceChip(
+                    avatar: const Icon(Icons.balance_rounded, size: 16),
+                    label: const Text('双线程 (均衡)'),
+                    selected: _workerThreads == 2,
+                    onSelected: _isEncoding ? null : (_) => setState(() => _workerThreads = 2),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _isDesktop
+                  ? 'PC 平台专属调优：当前设备共有 $_cpuCount 个 CPU 逻辑核心，已分配 $_activeWorkers 个 Isolate 线程并行渲染点阵帧，充分释放硬件多核性能。'
+                  : '移动端设备专属调优：采用 $_activeWorkers 线程保守并发，平衡点阵帧渲染性能与发热功耗，防止触发低内存清理 (LMK)。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
       ),
@@ -558,8 +667,31 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 minHeight: 6,
               ),
             ),
+            if (_isEncoding) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.bolt_rounded,
+                    size: 14,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _isDesktop
+                          ? '多核并行加速生效中：$_activeWorkers 线程并行渲染点阵帧'
+                          : '移动端温控模式生效中：$_activeWorkers 线程并发',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (Platform.isAndroid && _isEncoding) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(

@@ -643,4 +643,241 @@ void main() {
       }
     }, timeout: const Timeout(Duration(seconds: 180)));
   });
+
+  group('Windows Desktop Multi-Isolate Parallel Frame Rendering & Acceleration Tests', () {
+    test('getOptimalWorkerCount and getAcceleratorStatus adapt properly to CPU cores', () {
+      final cpuCount = Platform.numberOfProcessors;
+      final optimal = PixelEncoderService.getOptimalWorkerCount();
+      expect(optimal, inInclusiveRange(1, 8));
+      if (cpuCount >= 8) {
+        expect(optimal, inInclusiveRange(6, 8));
+      }
+
+      // Explicit overrides
+      expect(PixelEncoderService.getOptimalWorkerCount(1), equals(1));
+      expect(PixelEncoderService.getOptimalWorkerCount(4), equals(4));
+      expect(PixelEncoderService.getOptimalWorkerCount(16), equals(16));
+
+      // Status string
+      final status = PixelEncoderService.getAcceleratorStatus();
+      expect(status, contains('多核并行加速: 启用'));
+      expect(status, contains('$optimal 核心'));
+    });
+
+    testWidgets('EncodeScreen renders multi-core accelerator badge and thread choice chips', (tester) async {
+      tester.view.physicalSize = const Size(1120 * 2, 800 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: EncodeScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('多核并行加速'), findsOneWidget);
+      expect(find.textContaining('多核并行加速: 启用'), findsOneWidget);
+      expect(find.textContaining('自动 ('), findsOneWidget);
+      expect(find.text('单线程 (节能)'), findsOneWidget);
+
+      // Select '单线程 (节能)'
+      await tester.ensureVisible(find.text('单线程 (节能)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('单线程 (节能)'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('多核并行加速: 启用 (1 核心)'), findsOneWidget);
+
+      // Select back to '自动'
+      await tester.tap(find.textContaining('自动 ('));
+      await tester.pumpAndSettle();
+      final optimal = PixelEncoderService.getOptimalWorkerCount();
+      expect(find.textContaining('多核并行加速: 启用 ($optimal 核心)'), findsOneWidget);
+    });
+
+    test('Multi-Worker Parallelism (4 Isolates vs 1 Isolate): Both restore bit-exact 100% SHA-256 match', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull);
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_parallel_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create multi-chunk uncompressible test payload (150 KB)
+      final buffer = Uint8List(150 * 1024);
+      int lcg = 314159265;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      final List<double> progressUpdates = [];
+
+      try {
+        // 1. Encode with 4 parallel worker Isolates
+        final encodeResult4 = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 4,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 4,
+          onProgress: (p, s) {
+            progressUpdates.add(p);
+          },
+        );
+
+        expect(encodeResult4.videoFile.existsSync(), isTrue);
+        expect(progressUpdates.isNotEmpty, isTrue);
+        expect(progressUpdates.last, equals(1.0));
+
+        // 2. Decode and verify bit-exact SHA-256
+        final decodeResult4 = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult4.videoFile,
+          blockSize: 4,
+        );
+
+        expect(decodeResult4.isSha256Matched, isTrue);
+        expect(decodeResult4.sha256, equals(encodeResult4.sha256));
+        final restoredBytes4 = await decodeResult4.restoredFile.readAsBytes();
+        expect(restoredBytes4, equals(buffer));
+
+        // 3. Encode with 1 worker Isolate
+        final encodeResult1 = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 4,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 1,
+        );
+
+        final decodeResult1 = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult1.videoFile,
+          blockSize: 4,
+        );
+
+        expect(decodeResult1.isSha256Matched, isTrue);
+        expect(decodeResult1.sha256, equals(encodeResult4.sha256));
+        final restoredBytes1 = await decodeResult1.restoredFile.readAsBytes();
+        expect(restoredBytes1, equals(buffer));
+
+        try {
+          if (await encodeResult4.videoFile.exists()) await encodeResult4.videoFile.delete();
+          if (await decodeResult4.restoredFile.exists()) await decodeResult4.restoredFile.delete();
+          if (await encodeResult1.videoFile.exists()) await encodeResult1.videoFile.delete();
+          if (await decodeResult1.restoredFile.exists()) await decodeResult1.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Multi-Worker Parallelism (8 Isolates): 2x2 Ultra-dense 1080p Hold=1 restores bit-exact 100% SHA-256 match', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull);
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_parallel_2x2_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create multi-chunk uncompressible test payload (80 KB)
+      final buffer = Uint8List(80 * 1024);
+      int lcg = 987654321;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 2,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 8,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: 2,
+        );
+
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Multi-Worker Parallelism (4 Isolates): 8x8 720p Hold=2 restores bit-exact 100% SHA-256 match', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull);
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_parallel_8x8_${DateTime.now().millisecondsSinceEpoch}.dat');
+      // Create multi-chunk uncompressible test payload (20 KB)
+      final buffer = Uint8List(20 * 1024);
+      int lcg = 135792468;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 8,
+          width: 1280,
+          height: 720,
+          fps: 30,
+          holdFrames: 2,
+          workerCount: 4,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: 8,
+        );
+
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+  });
 }
