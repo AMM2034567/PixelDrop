@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:crypto/crypto.dart';
+import 'package:image/image.dart' as img;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -201,6 +204,66 @@ void main() {
 
       expect(find.byType(DropTarget), findsOneWidget);
       expect(find.textContaining('选择待还原视频'), findsOneWidget);
+    });
+
+    testWidgets('DecodeScreen renders warning card and red alert styling when isSha256Matched is false', (tester) async {
+      final dummyFile = File('C:/downloads/sha256_mismatch_demo.txt');
+      final mismatchResult = DecodeResult(
+        restoredFile: dummyFile,
+        filename: 'sha256_mismatch_demo.txt',
+        fileSize: 2048,
+        sha256: 'deadbeef0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        isSha256Matched: false,
+        detectedBlockSize: 4,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: Scaffold(
+            body: DecodeScreen(initialResult: mismatchResult),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify simulated mismatch UI elements
+      expect(find.text('文件还原完成（校验不一致）'), findsOneWidget);
+      expect(find.text('哈希指纹未完全匹配，视频可能经历了二次转码压缩'), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
+      expect(find.text('sha256_mismatch_demo.txt'), findsOneWidget);
+      expect(find.textContaining('deadbeef0123456789abcdef'), findsOneWidget);
+      expect(find.text('打开文件'), findsOneWidget);
+      expect(find.text('定位目录'), findsOneWidget);
+    });
+
+    testWidgets('DecodeScreen renders success card and verified icon when isSha256Matched is true', (tester) async {
+      final dummyFile = File('C:/downloads/success_sample.txt');
+      final successResult = DecodeResult(
+        restoredFile: dummyFile,
+        filename: 'success_sample.txt',
+        fileSize: 1024,
+        sha256: 'cafebabe0123456789abcdef0123456789abcdef0123456789abcdef01234567',
+        isSha256Matched: true,
+        detectedBlockSize: 2,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: true),
+          home: Scaffold(
+            body: DecodeScreen(initialResult: successResult),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify success UI elements
+      expect(find.text('文件还原成功'), findsOneWidget);
+      expect(find.text('SHA-256 校验通过，与源文件完全一致'), findsOneWidget);
+      expect(find.byIcon(Icons.verified_rounded), findsOneWidget);
+      expect(find.text('success_sample.txt'), findsOneWidget);
+      expect(find.textContaining('cafebabe0123456789abcdef'), findsOneWidget);
     });
   });
 
@@ -1153,6 +1216,126 @@ void main() {
           if (await fakeVideo.exists()) await fakeVideo.delete();
         } catch (_) {}
       }
+    });
+
+    test('Simulated SHA-256 Mismatch: Video with spoofed metadata hash decodes successfully but flags isSha256Matched as false', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for simulation verification');
+
+      // 1. Prepare dummy payload
+      const testFilename = 'sha256_mismatch_demo.txt';
+      final dummyText = StringBuffer();
+      dummyText.writeln('=====================================================');
+      dummyText.writeln('PixelDrop SHA-256 校验不一致模拟测试文件');
+      dummyText.writeln('=====================================================');
+      dummyText.writeln('测试说明:');
+      dummyText.writeln('1. 本视频中每一个像素点和分块的 CRC32 均 100% 正确且完整。');
+      dummyText.writeln('2. 文件内容被无损解压并保存到本地。');
+      dummyText.writeln('3. 头部元数据中记录的期望 SHA-256 哈希被特意篡改为伪造指纹。');
+      dummyText.writeln('4. PixelDrop 在最终安全比对时发现不一致，触发防篡改警告 UI！');
+      dummyText.writeln('=====================================================');
+
+      final dummyBytes = Uint8List.fromList(utf8.encode(dummyText.toString()));
+      final realHash = sha256.convert(dummyBytes).toString();
+      const spoofedHash = '0000000000000000000000000000000000000000000000000000000000000000';
+
+      // 2. Build meta header with spoofed SHA-256
+      final metaHeader = PixelProtocol.buildMetaHeader(
+        filename: testFilename,
+        origSize: dummyBytes.length,
+        sha256Hex: spoofedHash,
+        useGzip: false,
+      );
+
+      final fullStream = Uint8List(metaHeader.length + dummyBytes.length);
+      fullStream.setRange(0, metaHeader.length, metaHeader);
+      fullStream.setRange(metaHeader.length, fullStream.length, dummyBytes);
+
+      // 3. Grid geometry: 4x4 block, 1280x720
+      const blockSize = 4;
+      const width = 1280;
+      const height = 720;
+      const gridW = width ~/ blockSize;
+      const gridH = height ~/ blockSize;
+      const totalDots = gridW * gridH;
+      const frameCapacity = (totalDots * 3) ~/ 8;
+      const chunkCapacity = frameCapacity - PixelProtocol.headerLen;
+
+      final List<Uint8List> chunks = [];
+      for (int i = 0; i < fullStream.length; i += chunkCapacity) {
+        final end = (i + chunkCapacity < fullStream.length) ? i + chunkCapacity : fullStream.length;
+        chunks.add(Uint8List.sublistView(fullStream, i, end));
+      }
+
+      // 4. Render frames
+      final tempDir = Directory.systemTemp;
+      final sessionTs = DateTime.now().millisecondsSinceEpoch;
+      final framesDir = Directory('${tempDir.path}\\sim_mismatch_frames_$sessionTs');
+      await framesDir.create(recursive: true);
+
+      int frameIndex = 1;
+      for (int c = 0; c < chunks.length; c++) {
+        final frameRaw = PixelProtocol.buildFrame(chunks.length, c, chunks[c], frameCapacity, version: 2);
+        final smallImg = img.Image(width: gridW, height: gridH, numChannels: 3);
+        final dots = PixelProtocol.unpackBytesToColorDots(frameRaw, totalDots);
+        int dotIdx = 0;
+        for (int y = 0; y < gridH; y++) {
+          for (int x = 0; x < gridW; x++) {
+            final v = dots[dotIdx++];
+            final r = (v & 4) != 0 ? 255 : 0;
+            final g = (v & 2) != 0 ? 255 : 0;
+            final b = (v & 1) != 0 ? 255 : 0;
+            smallImg.setPixelRgb(x, y, r, g, b);
+          }
+        }
+        final pngBytes = Uint8List.fromList(img.encodePng(smallImg, level: 1));
+        for (int h = 0; h < 20; h++) {
+          final fpath = '${framesDir.path}\\frame_${frameIndex.toString().padLeft(6, '0')}.png';
+          await File(fpath).writeAsBytes(pngBytes, flush: false);
+          frameIndex++;
+        }
+      }
+
+      // 5. FFmpeg encode
+      final tempVideo = File('${tempDir.path}\\sim_mismatch_video_$sessionTs.mp4');
+      final ffmpegArgs = [
+        '-y',
+        '-framerate', '20',
+        '-i', '${framesDir.path}\\frame_%06d.png',
+        '-vf', 'scale=$width:$height:flags=neighbor',
+        '-c:v', 'libx264',
+        '-crf', '24',
+        '-pix_fmt', 'yuv420p',
+        tempVideo.path,
+      ];
+      final procRes = await Process.run(cli!, ffmpegArgs);
+      expect(procRes.exitCode, 0);
+
+      // Save a permanent copy to Downloads/PixelDrop/Videos/sha256_mismatch_demo.mp4
+      final videosDir = await StorageHelper.getVideosDir();
+      final userVideo = File('${videosDir.path}\\sha256_mismatch_demo.mp4');
+      await tempVideo.copy(userVideo.path);
+
+      // 6. Decode and verify mismatch behavior
+      final decodeResult = await PixelDecoderService.decodeVideoToFile(
+        videoFile: tempVideo,
+        blockSize: null, // Auto-detect
+      );
+
+      expect(decodeResult.detectedBlockSize, equals(4));
+      expect(decodeResult.isSha256Matched, isFalse, reason: 'Expected SHA-256 mismatch flag to be false');
+      expect(decodeResult.sha256, equals(realHash), reason: 'Actual computed SHA-256 must match real file hash');
+      expect(decodeResult.filename, equals(testFilename));
+      final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+      expect(restoredBytes, equals(dummyBytes), reason: 'Payload bytes must be perfectly restored');
+
+      // Cleanup temp working files
+      try {
+        if (await framesDir.exists()) await framesDir.delete(recursive: true);
+        if (await tempVideo.exists()) await tempVideo.delete();
+        if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+      } catch (_) {}
     });
   });
 }

@@ -13,7 +13,8 @@ import '../models/history_record.dart';
 import '../services/history_service.dart';
 
 class DecodeScreen extends StatefulWidget {
-  const DecodeScreen({super.key});
+  final DecodeResult? initialResult;
+  const DecodeScreen({super.key, this.initialResult});
 
   @override
   State<DecodeScreen> createState() => _DecodeScreenState();
@@ -27,6 +28,14 @@ class _DecodeScreenState extends State<DecodeScreen> {
   double _progress = 0.0;
   String _statusText = '';
   DecodeResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialResult != null) {
+      _result = widget.initialResult;
+    }
+  }
 
   void _pickVideo() async {
     final res = await FilePicker.platform.pickFiles(
