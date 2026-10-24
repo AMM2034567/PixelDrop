@@ -34,6 +34,7 @@ class _RenderIsolateArgs {
   final int gridW;
   final int gridH;
   final int holdFrames;
+  final int version;
   final String framesDirPath;
 
   _RenderIsolateArgs({
@@ -44,6 +45,7 @@ class _RenderIsolateArgs {
     required this.gridW,
     required this.gridH,
     required this.holdFrames,
+    required this.version,
     required this.framesDirPath,
   });
 }
@@ -51,6 +53,7 @@ class _RenderIsolateArgs {
 /// Background Isolate worker for fast frame generation with progress reporting.
 void _renderFramesIsolateWorker(_RenderIsolateArgs args) {
   int frameIndex = 1;
+  final dotCount = args.gridW * args.gridH;
 
   for (int idx = 0; idx < args.totalChunks; idx++) {
     final chunk = args.chunks[idx];
@@ -59,22 +62,38 @@ void _renderFramesIsolateWorker(_RenderIsolateArgs args) {
       idx,
       chunk,
       args.frameCapacity,
+      version: args.version,
     );
-    final bits = PixelProtocol.unpackBits(frameRaw);
 
-    // 3-channel RGB image (320x180 or 160x90)
+    // 3-channel RGB image (480x270, 320x180, etc.)
     final smallImg = img.Image(
       width: args.gridW,
       height: args.gridH,
       numChannels: 3,
     );
 
-    int bitIdx = 0;
-    for (int y = 0; y < args.gridH; y++) {
-      for (int x = 0; x < args.gridW; x++) {
-        final val = bits[bitIdx] == 1 ? 255 : 0;
-        smallImg.setPixelRgb(x, y, val, val, val);
-        bitIdx++;
+    if (args.version == 2) {
+      // RGB 8-color protocol: 3 bits per dot
+      final dots = PixelProtocol.unpackBytesToColorDots(frameRaw, dotCount);
+      int dotIdx = 0;
+      for (int y = 0; y < args.gridH; y++) {
+        for (int x = 0; x < args.gridW; x++) {
+          final v = dots[dotIdx++];
+          final r = (v & 4) != 0 ? 255 : 0;
+          final g = (v & 2) != 0 ? 255 : 0;
+          final b = (v & 1) != 0 ? 255 : 0;
+          smallImg.setPixelRgb(x, y, r, g, b);
+        }
+      }
+    } else {
+      // Monochrome protocol: 1 bit per dot
+      final bits = PixelProtocol.unpackBits(frameRaw);
+      int bitIdx = 0;
+      for (int y = 0; y < args.gridH; y++) {
+        for (int x = 0; x < args.gridW; x++) {
+          final val = bits[bitIdx++] == 1 ? 255 : 0;
+          smallImg.setPixelRgb(x, y, val, val, val);
+        }
       }
     }
 
@@ -98,15 +117,25 @@ void _renderFramesIsolateWorker(_RenderIsolateArgs args) {
 }
 
 class PixelEncoderService {
+  static const int defaultWidth = 1920;
+  static const int defaultHeight = 1080;
+  static const int defaultFps = 30;
+  static const int defaultHoldFrames = 1;
+  static const int defaultCrf = 18;
+
+  // Preserved for backwards compatibility
   static const int width = 1280;
   static const int height = 720;
 
   static Future<EncodeResult> encodeFileToVideo({
     required File inputFile,
     int blockSize = 4,
-    int fps = 10,
-    int holdFrames = 2,
-    int crf = 22,
+    int width = defaultWidth,
+    int height = defaultHeight,
+    int fps = defaultFps,
+    int holdFrames = defaultHoldFrames,
+    int crf = defaultCrf,
+    int version = 2,
     Function(double progress, String status)? onProgress,
   }) async {
     final rawBytes = await inputFile.readAsBytes();
@@ -136,7 +165,9 @@ class PixelEncoderService {
     // 3. Grid geometry
     final gridW = width ~/ blockSize;
     final gridH = height ~/ blockSize;
-    final frameCapacity = (gridW * gridH) ~/ 8; // Total bytes capacity per frame
+    final totalDots = gridW * gridH;
+    final int bitsPerDot = (version == 2) ? 3 : 1;
+    final frameCapacity = (totalDots * bitsPerDot) ~/ 8; // Total bytes capacity per frame
     final chunkPayloadCapacity = frameCapacity - PixelProtocol.headerLen;
 
     // Slice into chunks
@@ -173,6 +204,7 @@ class PixelEncoderService {
         gridW: gridW,
         gridH: gridH,
         holdFrames: holdFrames,
+        version: version,
         framesDirPath: framesDir.path,
       ),
     );

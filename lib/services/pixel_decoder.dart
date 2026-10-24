@@ -28,12 +28,16 @@ class DecodeResult {
 class _RawScanArgs {
   final SendPort sendPort;
   final String rawFilePath;
+  final int gridW;
+  final int gridH;
   final int frameByteSize;
   final int totalFrames;
 
   _RawScanArgs({
     required this.sendPort,
     required this.rawFilePath,
+    required this.gridW,
+    required this.gridH,
     required this.frameByteSize,
     required this.totalFrames,
   });
@@ -63,30 +67,77 @@ class _ScanDoneMsg {
   });
 }
 
-/// Background Isolate worker: reads raw gray frames directly and packs bits in pure memory integers.
-/// 100x faster than reading individual JPEG files.
+/// Background Isolate worker: reads raw RGB frames directly and unpacks bits with integer registers.
+/// Supports both v2 (RGB 8-color, PD02) and legacy v1 (monochrome, PXL1).
 void _scanRawFramesWorker(_RawScanArgs args) {
   final file = File(args.rawFilePath);
   final raf = file.openSync(mode: FileMode.read);
   final Map<int, Uint8List> collected = {};
   int? totalChunksExpected;
+  int? detectedVersion; // 2 for RGB color, 1 for monochrome
+
+  final int dotCount = args.gridW * args.gridH;
+  final int colorCapacity = (dotCount * 3) ~/ 8;
+  final int monoCapacity = dotCount ~/ 8;
 
   final buffer = Uint8List(args.frameByteSize);
-  final packed = Uint8List(args.frameByteSize >> 3);
+  final packedColor = Uint8List(colorCapacity);
+  final packedMono = Uint8List(monoCapacity);
 
   for (int f = 0; f < args.totalFrames; f++) {
     final readBytes = raf.readIntoSync(buffer);
     if (readBytes < args.frameByteSize) break;
 
-    // Direct fast byte-to-bit conversion (red/gray > 128 is 1, else 0)
-    packed.fillRange(0, packed.length, 0);
-    for (int i = 0; i < args.frameByteSize; i++) {
-      if (buffer[i] > 128) {
-        packed[i >> 3] |= (1 << (7 - (i & 7)));
+    FrameParseResult? parsed;
+
+    // 1. Try RGB color protocol (v2, PD02) if version not fixed to 1
+    if (detectedVersion == null || detectedVersion == 2) {
+      packedColor.fillRange(0, packedColor.length, 0);
+      int acc = 0;
+      int bitsInAcc = 0;
+      int outIdx = 0;
+
+      for (int i = 0; i < dotCount; i++) {
+        final offset = i * 3;
+        final rBit = buffer[offset] > 128 ? 4 : 0;
+        final gBit = buffer[offset + 1] > 128 ? 2 : 0;
+        final bBit = buffer[offset + 2] > 128 ? 1 : 0;
+        final dotVal = rBit | gBit | bBit;
+
+        acc = (acc << 3) | dotVal;
+        bitsInAcc += 3;
+        while (bitsInAcc >= 8) {
+          bitsInAcc -= 8;
+          if (outIdx < colorCapacity) {
+            packedColor[outIdx++] = (acc >> bitsInAcc) & 0xFF;
+          }
+        }
+        acc &= (1 << bitsInAcc) - 1;
+      }
+      if (bitsInAcc > 0 && outIdx < colorCapacity) {
+        packedColor[outIdx++] = (acc << (8 - bitsInAcc)) & 0xFF;
+      }
+
+      parsed = PixelProtocol.parseFrame(packedColor);
+      if (parsed != null) {
+        detectedVersion = 2;
       }
     }
 
-    final parsed = PixelProtocol.parseFrame(packed);
+    // 2. If color parse failed and version not fixed to 2, test monochrome (v1, PXL1)
+    if (parsed == null && (detectedVersion == null || detectedVersion == 1)) {
+      packedMono.fillRange(0, packedMono.length, 0);
+      for (int i = 0; i < dotCount; i++) {
+        if (buffer[i * 3] > 128) {
+          packedMono[i >> 3] |= (1 << (7 - (i & 7)));
+        }
+      }
+      parsed = PixelProtocol.parseFrame(packedMono);
+      if (parsed != null) {
+        detectedVersion = 1;
+      }
+    }
+
     if (parsed != null) {
       totalChunksExpected = parsed.totalChunks;
       if (!collected.containsKey(parsed.chunkIndex)) {
@@ -123,12 +174,18 @@ void _scanRawFramesWorker(_RawScanArgs args) {
 }
 
 class PixelDecoderService {
+  static const int defaultWidth = 1920;
+  static const int defaultHeight = 1080;
+
+  // Preserved for backwards compatibility
   static const int width = 1280;
   static const int height = 720;
 
   static Future<DecodeResult> decodeVideoToFile({
     required File videoFile,
     int blockSize = 4,
+    int? width,
+    int? height,
     Function(double progress, String status)? onProgress,
   }) async {
     Directory tempDir;
@@ -147,27 +204,42 @@ class PixelDecoderService {
       onProgress?.call(0.02, '正在读取视频文件...');
       await videoFile.copy(safeInputFile.path);
 
-      onProgress?.call(0.05, '正在解码视频画面...');
+      onProgress?.call(0.05, '正在分析视频规格与画面...');
       await NotificationService.showProgress(
         id: 102,
         title: 'PixelDrop 正在还原文件...',
-        body: '正在解码视频画面...',
+        body: '正在分析视频规格与画面...',
         progress: 5,
         maxProgress: 100,
         force: true,
       );
 
-      final gridW = width ~/ blockSize;
-      final gridH = height ~/ blockSize;
-      final frameByteSize = gridW * gridH;
+      int targetWidth = width ?? defaultWidth;
+      int targetHeight = height ?? defaultHeight;
 
-      // 1. FFmpeg hardware-speed scale and dump to raw 8-bit grayscale stream
+      // Auto-detect resolution from video metadata if not explicitly provided
+      if (width == null || height == null) {
+        try {
+          final dims = await FfmpegRunner.getVideoDimensions(safeInputFile.path);
+          if (dims != null) {
+            targetWidth = dims.$1;
+            targetHeight = dims.$2;
+          }
+        } catch (_) {}
+      }
+
+      final gridW = targetWidth ~/ blockSize;
+      final gridH = targetHeight ~/ blockSize;
+      final frameByteSize = gridW * gridH * 3; // RGB 24-bit
+
+      // 1. FFmpeg hardware-speed scale and dump to raw 24-bit RGB stream
       final args = [
         '-y',
+        '-noautorotate',
         '-i',
         safeInputFile.path,
         '-vf',
-        'scale=$gridW:$gridH:flags=neighbor,format=gray',
+        'format=rgb24,scale=$gridW:$gridH:flags=neighbor',
         '-f',
         'rawvideo',
         rawFramesFile.path,
@@ -197,7 +269,7 @@ class PixelDecoderService {
       final rawFileSize = await rawFramesFile.length();
       final totalFrames = rawFileSize ~/ frameByteSize;
       if (totalFrames == 0) {
-        throw Exception('提取的画面帧数为 0');
+        throw Exception('提取的画面帧数为 0（分辨率或块大小可能不匹配）');
       }
 
       onProgress?.call(0.42, '已提取 $totalFrames 帧画面，正在解析点阵数据...');
@@ -209,6 +281,8 @@ class PixelDecoderService {
         _RawScanArgs(
           sendPort: receivePort.sendPort,
           rawFilePath: rawFramesFile.path,
+          gridW: gridW,
+          gridH: gridH,
           frameByteSize: frameByteSize,
           totalFrames: totalFrames,
         ),
@@ -248,6 +322,12 @@ class PixelDecoderService {
         throw Exception(
           '未能集齐全部数据分块（已收集 ${collected.length}/${totalExpected ?? '?'}，共扫描 $totalFrames 帧）',
         );
+      }
+
+      for (int i = 0; i < totalExpected; i++) {
+        if (!collected.containsKey(i)) {
+          throw Exception('数据分块不完整，缺失分块索引: $i（共 $totalExpected 块）');
+        }
       }
 
       onProgress?.call(0.88, '正在校验并组装文件数据...');

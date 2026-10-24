@@ -417,8 +417,8 @@ class _DecodeScreenState extends State<DecodeScreen> {
             const SizedBox(height: 10),
             Text(
               _blockSize == 4
-                  ? '解析 4x4 规格制作的点阵视频'
-                  : '解析 8x8 规格制作的点阵视频',
+                  ? '解析 4x4 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）'
+                  : '解析 8x8 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

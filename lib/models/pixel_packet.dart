@@ -3,10 +3,24 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 
 class PixelProtocol {
-  static const List<int> magic = [0x50, 0x58, 0x4C, 0x31]; // 'PXL1'
+  static const List<int> magicV1 = [0x50, 0x58, 0x4C, 0x31]; // 'PXL1' (Monochrome)
+  static const List<int> magicV2 = [0x50, 0x44, 0x30, 0x32]; // 'PD02' (RGB 8-Color)
+  static const List<int> magic = magicV2; // Default current magic
   static const int headerLen = 16;
 
-  /// Packs bits (0 or 1) into bytes.
+  /// Standard 8 RGB high-contrast corner colors (3 bits per color: R, G, B)
+  static const List<List<int>> colorPalette = [
+    [0, 0, 0], // 0: 000 Black
+    [0, 0, 255], // 1: 001 Blue
+    [0, 255, 0], // 2: 010 Green
+    [0, 255, 255], // 3: 011 Cyan
+    [255, 0, 0], // 4: 100 Red
+    [255, 0, 255], // 5: 101 Magenta
+    [255, 255, 0], // 6: 110 Yellow
+    [255, 255, 255], // 7: 111 White
+  ];
+
+  /// Packs bits (0 or 1) into bytes (v1 monochrome).
   static Uint8List packBits(List<int> bits) {
     final byteLen = (bits.length + 7) ~/ 8;
     final out = Uint8List(byteLen);
@@ -20,7 +34,7 @@ class PixelProtocol {
     return out;
   }
 
-  /// Unpacks bytes into bits (0 or 1).
+  /// Unpacks bytes into bits (0 or 1) (v1 monochrome).
   static List<int> unpackBits(Uint8List bytes) {
     final bits = List<int>.filled(bytes.length * 8, 0);
     for (int i = 0; i < bytes.length; i++) {
@@ -33,17 +47,77 @@ class PixelProtocol {
     return bits;
   }
 
+  /// Unpacks bytes into 3-bit RGB color dot values (0..7) where:
+  /// bit 2 = R (>128), bit 1 = G (>128), bit 0 = B (>128).
+  static Uint8List unpackBytesToColorDots(Uint8List bytes, int dotCount) {
+    final dots = Uint8List(dotCount);
+    int acc = 0;
+    int bitsInAcc = 0;
+    int byteIdx = 0;
+    final totalBytes = bytes.length;
+
+    for (int i = 0; i < dotCount; i++) {
+      while (bitsInAcc < 3 && byteIdx < totalBytes) {
+        acc = (acc << 8) | bytes[byteIdx++];
+        bitsInAcc += 8;
+      }
+      if (bitsInAcc >= 3) {
+        bitsInAcc -= 3;
+        dots[i] = (acc >> bitsInAcc) & 0x07;
+        acc &= (1 << bitsInAcc) - 1;
+      } else if (bitsInAcc > 0) {
+        dots[i] = (acc << (3 - bitsInAcc)) & 0x07;
+        bitsInAcc = 0;
+        acc = 0;
+      } else {
+        dots[i] = 0;
+      }
+    }
+    return dots;
+  }
+
+  /// Packs 3-bit RGB color dot values (0..7) into bytes.
+  static Uint8List packColorDotsToBytes(List<int> dots, int byteLength) {
+    final out = Uint8List(byteLength);
+    int acc = 0;
+    int bitsInAcc = 0;
+    int outIdx = 0;
+
+    for (int i = 0; i < dots.length; i++) {
+      acc = (acc << 3) | (dots[i] & 0x07);
+      bitsInAcc += 3;
+      while (bitsInAcc >= 8) {
+        bitsInAcc -= 8;
+        if (outIdx < byteLength) {
+          out[outIdx++] = (acc >> bitsInAcc) & 0xFF;
+        }
+      }
+      acc &= (1 << bitsInAcc) - 1;
+    }
+    if (bitsInAcc > 0 && outIdx < byteLength) {
+      out[outIdx++] = (acc << (8 - bitsInAcc)) & 0xFF;
+    }
+    return out;
+  }
+
   /// Builds a frame packet with 16-byte header:
   /// [Magic 4B][Total 2B][Idx 2B][PayloadLen 4B][CRC32 4B] + Payload + Padding
-  static Uint8List buildFrame(int total, int idx, Uint8List chunk, int targetCapacity) {
+  static Uint8List buildFrame(
+    int total,
+    int idx,
+    Uint8List chunk,
+    int targetCapacity, {
+    int version = 2,
+  }) {
     final crc = getCrc32(chunk);
     final buffer = ByteData(targetCapacity);
-    
+    final selectedMagic = (version == 1) ? magicV1 : magicV2;
+
     // Magic (4 bytes)
-    buffer.setUint8(0, magic[0]);
-    buffer.setUint8(1, magic[1]);
-    buffer.setUint8(2, magic[2]);
-    buffer.setUint8(3, magic[3]);
+    buffer.setUint8(0, selectedMagic[0]);
+    buffer.setUint8(1, selectedMagic[1]);
+    buffer.setUint8(2, selectedMagic[2]);
+    buffer.setUint8(3, selectedMagic[3]);
 
     // Total chunks & idx
     buffer.setUint16(4, total, Endian.big);
@@ -60,15 +134,23 @@ class PixelProtocol {
   }
 
   /// Parses a frame packet and verifies CRC32.
+  /// Supports both PD02 (version 2 RGB 8-color) and PXL1 (version 1 monochrome).
   static FrameParseResult? parseFrame(Uint8List frameRaw) {
     if (frameRaw.length < headerLen) return null;
     final bd = ByteData.sublistView(frameRaw);
 
-    // Check magic
-    if (frameRaw[0] != magic[0] ||
-        frameRaw[1] != magic[1] ||
-        frameRaw[2] != magic[2] ||
-        frameRaw[3] != magic[3]) {
+    int version = 0;
+    if (frameRaw[0] == magicV2[0] &&
+        frameRaw[1] == magicV2[1] &&
+        frameRaw[2] == magicV2[2] &&
+        frameRaw[3] == magicV2[3]) {
+      version = 2;
+    } else if (frameRaw[0] == magicV1[0] &&
+        frameRaw[1] == magicV1[1] &&
+        frameRaw[2] == magicV1[2] &&
+        frameRaw[3] == magicV1[3]) {
+      version = 1;
+    } else {
       return null;
     }
 
@@ -90,6 +172,7 @@ class PixelProtocol {
       totalChunks: total,
       chunkIndex: idx,
       payload: Uint8List.fromList(payload),
+      version: version,
     );
   }
 
@@ -120,14 +203,19 @@ class PixelProtocol {
 
   /// Parses metadata header from reconstructed stream.
   static MetaHeaderResult parseMetaHeader(Uint8List stream) {
-    if (stream.length < 75) {
-      throw Exception('Invalid stream length for metadata header');
+    if (stream.length < 2) {
+      throw const FormatException('Stream length too short for metadata header');
     }
     final bd = ByteData.sublistView(stream);
     final fnameLen = bd.getUint16(0, Endian.big);
     final offset = 2 + fnameLen;
-    final filename = utf8.decode(stream.sublist(2, offset));
+    // 2 (fnameLen) + fnameLen + 8 (origSize) + 64 (sha256Hex) + 1 (useGzip) = offset + 73
+    final minHeaderLen = offset + 73;
+    if (stream.length < minHeaderLen) {
+      throw const FormatException('Truncated or invalid metadata header in stream');
+    }
 
+    final filename = utf8.decode(stream.sublist(2, offset));
     final origSize = bd.getUint64(offset, Endian.big);
     final sha256Hex = ascii.decode(stream.sublist(offset + 8, offset + 72));
     final useGzip = stream[offset + 72] == 1;
@@ -148,11 +236,13 @@ class FrameParseResult {
   final int totalChunks;
   final int chunkIndex;
   final Uint8List payload;
+  final int version;
 
   FrameParseResult({
     required this.totalChunks,
     required this.chunkIndex,
     required this.payload,
+    this.version = 2,
   });
 }
 

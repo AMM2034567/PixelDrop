@@ -22,6 +22,8 @@ class EncodeScreen extends StatefulWidget {
 class _EncodeScreenState extends State<EncodeScreen> {
   File? _selectedFile;
   int _blockSize = 4; // 4 or 8
+  int _resolution = 1080; // 1080 or 720
+  int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
   bool _isEncoding = false;
   bool _isDragging = false;
   double _progress = 0.0;
@@ -61,9 +63,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
       final res = await PixelEncoderService.encodeFileToVideo(
         inputFile: _selectedFile!,
         blockSize: _blockSize,
-        fps: 10,
-        holdFrames: 2,
-        crf: 22,
+        width: _resolution == 1080 ? 1920 : 1280,
+        height: _resolution == 1080 ? 1080 : 720,
+        fps: 30,
+        holdFrames: _holdFrames,
+        crf: 18,
         onProgress: (p, status) {
           setState(() {
             _progress = p;
@@ -417,8 +421,86 @@ class _EncodeScreenState extends State<EncodeScreen> {
             const SizedBox(height: 10),
             Text(
               _blockSize == 4
-                  ? '4x4 规格：单帧容量更大，生成视频更短'
+                  ? '4x4 规格：RGB 8色高密度点阵，30 fps 极速传输，生成视频更短'
                   : '8x8 规格：色块更大容错率更高，抗画面压缩与噪点',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '视频分辨率',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment<int>(
+                    value: 1080,
+                    icon: Icon(Icons.hd_rounded),
+                    label: Text('1080p 全高清'),
+                  ),
+                  ButtonSegment<int>(
+                    value: 720,
+                    icon: Icon(Icons.sd_rounded),
+                    label: Text('720p 高清'),
+                  ),
+                ],
+                selected: {_resolution},
+                onSelectionChanged: _isEncoding
+                    ? null
+                    : (selection) => setState(() => _resolution = selection.first),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _resolution == 1080
+                  ? '1080p (1920x1080)：4x4 单帧约 47 KB，传输率约 1.4 MB/s'
+                  : '720p (1280x720)：4x4 单帧约 21 KB，兼容低配设备',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '帧留存率 (Hold Frames)',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment<int>(
+                    value: 1,
+                    icon: Icon(Icons.flash_on_rounded),
+                    label: Text('1 帧 (极速)'),
+                  ),
+                  ButtonSegment<int>(
+                    value: 2,
+                    icon: Icon(Icons.shield_outlined),
+                    label: Text('2 帧 (容错)'),
+                  ),
+                ],
+                selected: {_holdFrames},
+                onSelectionChanged: _isEncoding
+                    ? null
+                    : (selection) => setState(() => _holdFrames = selection.first),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _holdFrames == 1
+                  ? '1 帧：点阵单帧传输，体积最小速度最快（推荐直接传文件）'
+                  : '2 帧：每块持续 2 帧，抗屏幕翻拍抖动与二重压缩丢帧',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),

@@ -125,6 +125,72 @@ class FfmpegRunner {
     return null;
   }
 
+  /// Probes video width and height. Returns (width, height) or null if undetermined.
+  static Future<(int, int)?> getVideoDimensions(String videoPath) async {
+    final cliPath = await getFfmpegCliPath();
+    if (cliPath != null) {
+      // 1. Try ffprobe beside ffmpeg
+      try {
+        final dir = File(cliPath).parent.path;
+        final probeCandidate = Platform.isWindows ? '$dir\\ffprobe.exe' : '$dir/ffprobe';
+        if (await File(probeCandidate).exists()) {
+          final res = await Process.run(probeCandidate, [
+            '-v', 'error',
+            '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height',
+            '-of', 'csv=s=x:p=0',
+            videoPath,
+          ]).timeout(const Duration(seconds: 4));
+          if (res.exitCode == 0) {
+            final text = (res.stdout as String).trim();
+            final parts = text.split('x');
+            if (parts.length == 2) {
+              final w = int.tryParse(parts[0]);
+              final h = int.tryParse(parts[1]);
+              if (w != null && h != null && w > 0 && h > 0) {
+                return (w, h);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 2. Try ffmpeg -i videoPath and parse stderr
+      try {
+        final res = await Process.run(cliPath, ['-i', videoPath]).timeout(const Duration(seconds: 4));
+        final errText = res.stderr as String;
+        final match = RegExp(r'Stream #0:\d+.*?: Video:.*?\b(\d{3,5})x(\d{3,5})\b').firstMatch(errText)
+            ?? RegExp(r'Video:.*?\b(\d{3,5})x(\d{3,5})\b').firstMatch(errText)
+            ?? RegExp(r'\b(\d{3,5})x(\d{3,5})\b').firstMatch(errText);
+        if (match != null) {
+          final w = int.tryParse(match.group(1)!);
+          final h = int.tryParse(match.group(2)!);
+          if (w != null && h != null && w > 0 && h > 0) {
+            return (w, h);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 3. Fallback on mobile with FFmpegKit
+    try {
+      final session = await FFmpegKit.executeWithArguments(['-i', videoPath]);
+      final rawLogs = await session.getLogsAsString();
+      final match = RegExp(r'Stream #0:\d+.*?: Video:.*?\b(\d{3,5})x(\d{3,5})\b').firstMatch(rawLogs)
+          ?? RegExp(r'Video:.*?\b(\d{3,5})x(\d{3,5})\b').firstMatch(rawLogs)
+          ?? RegExp(r'\b(\d{3,5})x(\d{3,5})\b').firstMatch(rawLogs);
+      if (match != null) {
+        final w = int.tryParse(match.group(1)!);
+        final h = int.tryParse(match.group(2)!);
+        if (w != null && h != null && w > 0 && h > 0) {
+          return (w, h);
+        }
+      }
+    } catch (_) {}
+
+    return null;
+  }
+
   /// Executes FFmpeg arguments with real-time frame progress callbacks.
   static Future<void> execute({
     required List<String> args,
