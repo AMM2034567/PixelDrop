@@ -21,7 +21,7 @@ class DecodeScreen extends StatefulWidget {
 
 class _DecodeScreenState extends State<DecodeScreen> {
   File? _selectedVideo;
-  int _blockSize = 4; // 2, 4, or 8
+  int _blockSize = 0; // 0 = 自动识别, 2, 4, or 8
   bool _isDecoding = false;
   bool _isDragging = false;
   double _progress = 0.0;
@@ -63,7 +63,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
     try {
       final res = await PixelDecoderService.decodeVideoToFile(
         videoFile: _selectedVideo!,
-        blockSize: _blockSize,
+        blockSize: _blockSize == 0 ? null : _blockSize,
         onProgress: (p, status) {
           setState(() {
             _progress = p;
@@ -91,7 +91,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
         originalSize: res.fileSize,
         outputSize: res.fileSize,
         sha256: res.sha256,
-        blockSize: _blockSize,
+        blockSize: res.detectedBlockSize,
       );
 
       if (!mounted) return;
@@ -398,6 +398,11 @@ class _DecodeScreenState extends State<DecodeScreen> {
                 showSelectedIcon: false,
                 segments: const [
                   ButtonSegment<int>(
+                    value: 0,
+                    icon: Icon(Icons.auto_awesome_rounded),
+                    label: Text('自动识别'),
+                  ),
+                  ButtonSegment<int>(
                     value: 2,
                     icon: Icon(Icons.flash_on_rounded),
                     label: Text('2x2 采样'),
@@ -421,11 +426,13 @@ class _DecodeScreenState extends State<DecodeScreen> {
             ),
             const SizedBox(height: 10),
             Text(
-              _blockSize == 2
-                  ? '解析 2x2 极速高密点阵视频（支持 1080p / 720p 分辨率自适应）'
-                  : _blockSize == 4
-                      ? '解析 4x4 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）'
-                      : '解析 8x8 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）',
+              _blockSize == 0
+                  ? '自动探测首帧魔数与校验和，自动适配 2x2、4x4 或 8x8 点阵规格（推荐）'
+                  : _blockSize == 2
+                      ? '解析 2x2 极速高密点阵视频（支持 1080p / 720p 分辨率自适应）'
+                      : _blockSize == 4
+                          ? '解析 4x4 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）'
+                          : '解析 8x8 规格制作的点阵视频（支持 1080p / 720p 分辨率自适应）',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
               ),
@@ -561,6 +568,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
             const Divider(height: 1),
             const SizedBox(height: 14),
             _buildDetailRow(context, '文件名', _result!.filename),
+            _buildDetailRow(context, '点阵规格', '${_result!.detectedBlockSize}x${_result!.detectedBlockSize} 像素'),
             _buildDetailRow(context, '文件大小', _formatBytes(_result!.fileSize)),
             _buildDetailRow(context, '保存路径', _result!.restoredFile.path, isMuted: true),
             const SizedBox(height: 14),

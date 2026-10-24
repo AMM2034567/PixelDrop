@@ -45,10 +45,12 @@ void main() {
     expect(find.byType(DecodeScreen), findsOneWidget);
     expect(find.text('选择待还原视频'), findsOneWidget);
     expect(find.text('解析采样规格'), findsOneWidget);
+    expect(find.text('自动识别'), findsOneWidget);
     expect(find.text('2x2 采样'), findsOneWidget);
     expect(find.text('4x4 采样'), findsOneWidget);
     expect(find.text('8x8 采样'), findsOneWidget);
     expect(find.text('开始还原文件'), findsOneWidget);
+    expect(find.textContaining('自动探测首帧魔数与校验和'), findsOneWidget);
 
     // Test SegmentedButton toggle in DecodeScreen
     await tester.tap(find.text('2x2 采样'));
@@ -58,6 +60,10 @@ void main() {
     await tester.tap(find.text('8x8 采样'));
     await tester.pumpAndSettle();
     expect(find.textContaining('解析 8x8 规格制作的点阵视频'), findsOneWidget);
+
+    await tester.tap(find.text('自动识别'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('自动探测首帧魔数与校验和'), findsOneWidget);
 
     // Switch to HistoryScreen
     await tester.tap(find.text('传输历史'));

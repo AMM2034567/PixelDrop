@@ -880,4 +880,280 @@ void main() {
       }
     }, timeout: const Timeout(Duration(seconds: 180)));
   });
+
+  group('Automatic Block Size Auto-Detection Tests', () {
+    test('Auto-detect 4x4 (1080p, hold=1): decodeVideoToFile(blockSize: null) detects 4x4 and restores bit-exact', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_autodetect_4x4_${DateTime.now().millisecondsSinceEpoch}.dat');
+      final buffer = Uint8List(50 * 1024);
+      int lcg = 44444444;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 4,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 4,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: null, // Test auto-detection
+        );
+
+        expect(decodeResult.detectedBlockSize, equals(4));
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Auto-detect 2x2 (1080p, hold=1): decodeVideoToFile(blockSize: null) detects 2x2 and restores bit-exact', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_autodetect_2x2_${DateTime.now().millisecondsSinceEpoch}.dat');
+      final buffer = Uint8List(60 * 1024);
+      int lcg = 22222222;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 2,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 4,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: null, // Test auto-detection
+        );
+
+        expect(decodeResult.detectedBlockSize, equals(2));
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Auto-detect 8x8 (720p, hold=2): decodeVideoToFile(blockSize: null) detects 8x8 and restores bit-exact', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_autodetect_8x8_${DateTime.now().millisecondsSinceEpoch}.dat');
+      final buffer = Uint8List(20 * 1024);
+      int lcg = 88888888;
+      for (int i = 0; i < buffer.length; i++) {
+        lcg = (lcg * 1103515245 + 12345) & 0x7FFFFFFF;
+        buffer[i] = (lcg >> 16) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 8,
+          width: 1280,
+          height: 720,
+          fps: 30,
+          holdFrames: 2,
+          workerCount: 4,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: null, // Test auto-detection
+        );
+
+        expect(decodeResult.detectedBlockSize, equals(8));
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Auto-detect with blockSize: 0: decodeVideoToFile(blockSize: 0) triggers auto-detection without division-by-zero crash', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_autodetect_bs0_${DateTime.now().millisecondsSinceEpoch}.dat');
+      final buffer = Uint8List(10 * 1024);
+      for (int i = 0; i < buffer.length; i++) {
+        buffer[i] = (i * 17 + 23) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 4,
+          width: 1280,
+          height: 720,
+          fps: 30,
+          holdFrames: 1,
+          workerCount: 2,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: 0, // Explicitly pass 0 to ensure no IntegerDivisionByZeroException occurs
+        );
+
+        expect(decodeResult.detectedBlockSize, equals(4));
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Auto-detect Legacy Version 1 (Monochrome PXL1): decodeVideoToFile(blockSize: null) detects v1 block size', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final cli = await FfmpegRunner.getFfmpegCliPath();
+      expect(cli, isNotNull, reason: 'FFmpeg CLI must be present for end-to-end verification');
+
+      final tempDir = Directory.systemTemp;
+      final testFile = File('${tempDir.path}\\desktop_test_autodetect_v1_${DateTime.now().millisecondsSinceEpoch}.dat');
+      final buffer = Uint8List(12 * 1024);
+      for (int i = 0; i < buffer.length; i++) {
+        buffer[i] = (i * 37 + 7) & 0xFF;
+      }
+      await testFile.writeAsBytes(buffer, flush: true);
+
+      try {
+        final encodeResult = await PixelEncoderService.encodeFileToVideo(
+          inputFile: testFile,
+          blockSize: 4,
+          width: 1280,
+          height: 720,
+          fps: 15,
+          holdFrames: 1,
+          version: 1, // Legacy monochrome PXL1
+          workerCount: 2,
+        );
+
+        expect(encodeResult.videoFile.existsSync(), isTrue);
+
+        final decodeResult = await PixelDecoderService.decodeVideoToFile(
+          videoFile: encodeResult.videoFile,
+          blockSize: null, // Auto-detect on legacy v1
+        );
+
+        expect(decodeResult.detectedBlockSize, equals(4));
+        expect(decodeResult.isSha256Matched, isTrue);
+        expect(decodeResult.sha256, equals(encodeResult.sha256));
+        final restoredBytes = await decodeResult.restoredFile.readAsBytes();
+        expect(restoredBytes, equals(buffer));
+
+        try {
+          if (await encodeResult.videoFile.exists()) await encodeResult.videoFile.delete();
+          if (await decodeResult.restoredFile.exists()) await decodeResult.restoredFile.delete();
+        } catch (_) {}
+      } finally {
+        try {
+          if (await testFile.exists()) await testFile.delete();
+        } catch (_) {}
+      }
+    }, timeout: const Timeout(Duration(seconds: 180)));
+
+    test('Auto-detect non-PixelDrop file: throws descriptive exception', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final tempDir = Directory.systemTemp;
+      final fakeVideo = File('${tempDir.path}\\desktop_test_fake_${DateTime.now().millisecondsSinceEpoch}.mp4');
+      await fakeVideo.writeAsBytes(Uint8List.fromList([0, 0, 0, 32, 102, 116, 121, 112, 109, 112, 52, 50]), flush: true);
+
+      try {
+        expect(
+          () => PixelDecoderService.decodeVideoToFile(
+            videoFile: fakeVideo,
+            blockSize: null,
+          ),
+          throwsA(
+            predicate((e) =>
+              e is Exception &&
+              e.toString().contains('无法自动识别点阵规格')
+            ),
+          ),
+        );
+      } finally {
+        try {
+          if (await fakeVideo.exists()) await fakeVideo.delete();
+        } catch (_) {}
+      }
+    });
+  });
 }
+

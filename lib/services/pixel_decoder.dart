@@ -15,6 +15,7 @@ class DecodeResult {
   final int fileSize;
   final String sha256;
   final bool isSha256Matched;
+  final int detectedBlockSize;
 
   DecodeResult({
     required this.restoredFile,
@@ -22,6 +23,7 @@ class DecodeResult {
     required this.fileSize,
     required this.sha256,
     required this.isSha256Matched,
+    required this.detectedBlockSize,
   });
 }
 
@@ -181,9 +183,126 @@ class PixelDecoderService {
   static const int width = 1280;
   static const int height = 720;
 
+  static bool _isValidRgbOrMonoFrame(Uint8List buffer, int gridW, int gridH) {
+    if (gridW <= 0 || gridH <= 0) return false;
+    final int dotCount = gridW * gridH;
+    if (buffer.length < dotCount * 3) return false;
+    final int colorCapacity = (dotCount * 3) ~/ 8;
+    final int monoCapacity = dotCount ~/ 8;
+
+    // 1. Try RGB color protocol (v2, PD02)
+    final packedColor = Uint8List(colorCapacity);
+    int acc = 0;
+    int bitsInAcc = 0;
+    int outIdx = 0;
+
+    for (int i = 0; i < dotCount; i++) {
+      final offset = i * 3;
+      final rBit = buffer[offset] > 128 ? 4 : 0;
+      final gBit = buffer[offset + 1] > 128 ? 2 : 0;
+      final bBit = buffer[offset + 2] > 128 ? 1 : 0;
+      final dotVal = rBit | gBit | bBit;
+
+      acc = (acc << 3) | dotVal;
+      bitsInAcc += 3;
+      while (bitsInAcc >= 8) {
+        bitsInAcc -= 8;
+        if (outIdx < colorCapacity) {
+          packedColor[outIdx++] = (acc >> bitsInAcc) & 0xFF;
+        }
+      }
+      acc &= (1 << bitsInAcc) - 1;
+    }
+    if (bitsInAcc > 0 && outIdx < colorCapacity) {
+      packedColor[outIdx++] = (acc << (8 - bitsInAcc)) & 0xFF;
+    }
+
+    if (PixelProtocol.parseFrame(packedColor) != null) {
+      return true;
+    }
+
+    // 2. Try monochrome protocol (v1, PXL1)
+    final packedMono = Uint8List(monoCapacity);
+    for (int i = 0; i < dotCount; i++) {
+      if (buffer[i * 3] > 128) {
+        packedMono[i >> 3] |= (1 << (7 - (i & 7)));
+      }
+    }
+
+    return PixelProtocol.parseFrame(packedMono) != null;
+  }
+
+  /// Fast probe for candidate block sizes: [4, 2, 8]
+  static Future<int> _probeBlockSize({
+    required String videoPath,
+    required int targetWidth,
+    required int targetHeight,
+    required Directory tempDir,
+    required int timestamp,
+    Function(double progress, String status)? onProgress,
+  }) async {
+    const candidates = [4, 2, 8];
+    for (final candidate in candidates) {
+      final gridW = targetWidth ~/ candidate;
+      final gridH = targetHeight ~/ candidate;
+      if (gridW <= 0 || gridH <= 0) continue;
+
+      onProgress?.call(0.06, '正在自动识别点阵规格 (尝试 ${candidate}x$candidate)...');
+      final frameByteSize = gridW * gridH * 3;
+      final probeRawFile = File(
+        '${tempDir.path}/probe_${timestamp}_${candidate}_${DateTime.now().microsecondsSinceEpoch}.raw',
+      );
+
+      try {
+        final args = [
+          '-y',
+          '-noautorotate',
+          '-i',
+          videoPath,
+          '-vframes',
+          '2',
+          '-vf',
+          'format=rgb24,scale=$gridW:$gridH:flags=area',
+          '-f',
+          'rawvideo',
+          probeRawFile.path,
+        ];
+
+        await FfmpegRunner.execute(args: args);
+
+        if (await probeRawFile.exists()) {
+          final probeBytes = await probeRawFile.readAsBytes();
+          final availableFrames = probeBytes.length ~/ frameByteSize;
+          for (int f = 0; f < availableFrames && f < 2; f++) {
+            final frameSlice = Uint8List.sublistView(
+              probeBytes,
+              f * frameByteSize,
+              (f + 1) * frameByteSize,
+            );
+            if (_isValidRgbOrMonoFrame(frameSlice, gridW, gridH)) {
+              return candidate;
+            }
+          }
+        }
+      } catch (_) {
+        // Probe execution failed for this candidate, test next
+      } finally {
+        try {
+          if (await probeRawFile.exists()) {
+            await probeRawFile.delete();
+          }
+        } catch (_) {}
+      }
+    }
+
+    throw Exception(
+      '无法自动识别点阵规格，请确认视频由 PixelDrop 生成，或手动指定采样规格（2x2、4x4 或 8x8）后重试',
+    );
+  }
+
   static Future<DecodeResult> decodeVideoToFile({
     required File videoFile,
-    int blockSize = 4,
+    int? blockSize,
     int? width,
     int? height,
     Function(double progress, String status)? onProgress,
@@ -228,8 +347,26 @@ class PixelDecoderService {
         } catch (_) {}
       }
 
-      final gridW = targetWidth ~/ blockSize;
-      final gridH = targetHeight ~/ blockSize;
+      int effectiveBlockSize;
+      if (blockSize != null && blockSize > 0) {
+        effectiveBlockSize = blockSize;
+      } else {
+        effectiveBlockSize = await _probeBlockSize(
+          videoPath: safeInputFile.path,
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+          tempDir: tempDir,
+          timestamp: timestamp,
+          onProgress: onProgress,
+        );
+        onProgress?.call(
+          0.08,
+          '已自动识别点阵规格: ${effectiveBlockSize}x$effectiveBlockSize 像素',
+        );
+      }
+
+      final gridW = targetWidth ~/ effectiveBlockSize;
+      final gridH = targetHeight ~/ effectiveBlockSize;
       final frameByteSize = gridW * gridH * 3; // RGB 24-bit
 
       // 1. FFmpeg hardware-speed scale and dump to raw 24-bit RGB stream
@@ -387,6 +524,7 @@ class PixelDecoderService {
         fileSize: restoredBytes.length,
         sha256: actualHash,
         isSha256Matched: isMatched,
+        detectedBlockSize: effectiveBlockSize,
       );
     } finally {
       // Clean up temporary extraction frames and safe input copy
