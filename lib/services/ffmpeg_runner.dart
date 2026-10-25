@@ -86,14 +86,14 @@ class FfmpegRunner {
       }
     }
 
-    // 4. Common drive roots and known installations
+    // 4. Common drive roots and standard installations
     final candidatePaths = [
-      r'E:\ffmpeg-8.1-full_build\bin\ffmpeg.exe',
       r'C:\ffmpeg\bin\ffmpeg.exe',
       r'D:\ffmpeg\bin\ffmpeg.exe',
       r'E:\ffmpeg\bin\ffmpeg.exe',
-      r'D:\deepin\SpleeterGUI\ffmpeg.exe',
-      r'D:\AIMP\Plugins\enc_ffmpeg\ffmpeg.exe',
+      r'C:\ffmpeg\ffmpeg.exe',
+      r'D:\ffmpeg\ffmpeg.exe',
+      r'E:\ffmpeg\ffmpeg.exe',
     ];
 
     for (final p in candidatePaths) {
