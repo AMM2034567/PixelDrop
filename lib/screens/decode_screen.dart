@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:path/path.dart' as p;
 import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_decoder.dart';
@@ -411,7 +412,7 @@ class DecodeScreenState extends State<DecodeScreen> {
       );
     }
 
-    final filename = Uri.decodeComponent(_selectedVideo!.uri.pathSegments.last);
+    final filename = p.basename(_selectedVideo!.path);
     final fileSize = _selectedVideo!.existsSync() ? _formatBytes(_selectedVideo!.lengthSync()) : '未知大小';
 
     return Card(

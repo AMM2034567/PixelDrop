@@ -5,6 +5,7 @@ import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../models/pixel_packet.dart';
 import 'ffmpeg_runner.dart';
 import 'notification_service.dart';
@@ -219,7 +220,7 @@ class PixelEncoderService {
     Function(double progress, String status)? onProgress,
   }) async {
     final rawBytes = await inputFile.readAsBytes();
-    final filename = Uri.decodeComponent(inputFile.uri.pathSegments.last);
+    final filename = p.basename(inputFile.path);
     final origSize = rawBytes.length;
     final fileSha256 = sha256.convert(rawBytes).toString();
 

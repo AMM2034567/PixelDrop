@@ -299,5 +299,22 @@ void main() {
       expect(find.text('打包并生成视频'), findsOneWidget);
       expect(find.textContaining('自动打包归档为: sample1_bundle.zip'), findsOneWidget);
     });
+
+    testWidgets('DecodeScreen renders video card with Chinese, spaces, and percent characters without URI exception', (tester) async {
+      final chinesePercentVideo = File(p.join(tempDir.path, '测试文件 100% 完成_pixel.mp4'))
+        ..writeAsBytesSync(List.filled(1024, 0));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DecodeScreen(initialVideoFile: chinesePercentVideo),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('测试文件 100% 完成_pixel.mp4'), findsOneWidget);
+      expect(find.text('开始还原文件'), findsOneWidget);
+    });
   });
 }
