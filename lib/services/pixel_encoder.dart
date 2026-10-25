@@ -161,6 +161,57 @@ class PixelEncoderService {
     }
   }
 
+  /// Builds standard FFmpeg arguments for encoding frames into MP4 with optional silent AAC audio
+  /// and +faststart web optimization.
+  static List<String> buildFfmpegArgs({
+    required String framesPattern,
+    required String outputPath,
+    int fps = defaultFps,
+    int width = defaultWidth,
+    int height = defaultHeight,
+    int crf = defaultCrf,
+    int gop = 60,
+    bool includeSilentAudio = true,
+  }) {
+    return [
+      '-y',
+      '-framerate',
+      '$fps',
+      '-i',
+      framesPattern,
+      if (includeSilentAudio) ...[
+        '-f',
+        'lavfi',
+        '-i',
+        'anullsrc=channel_layout=stereo:sample_rate=44100',
+      ],
+      '-vf',
+      'scale=$width:$height:flags=neighbor',
+      '-c:v',
+      'libx264',
+      '-crf',
+      '$crf',
+      '-preset',
+      'fast',
+      '-g',
+      '$gop',
+      '-sc_threshold',
+      '0',
+      '-pix_fmt',
+      'yuv420p',
+      if (includeSilentAudio) ...[
+        '-c:a',
+        'aac',
+        '-b:a',
+        '32k',
+        '-shortest',
+      ],
+      '-movflags',
+      '+faststart',
+      outputPath,
+    ];
+  }
+
   static Future<EncodeResult> encodeFileToVideo({
     required File inputFile,
     int blockSize = 4,
@@ -171,6 +222,7 @@ class PixelEncoderService {
     int crf = defaultCrf,
     int version = 2,
     int? workerCount,
+    bool includeSilentAudio = true,
     Function(double progress, String status)? onProgress,
   }) async {
     final rawBytes = await inputFile.readAsBytes();
@@ -324,50 +376,66 @@ class PixelEncoderService {
         throw Exception('点阵帧并行生成失败: $workerError');
       }
 
-      // 5. FFmpeg encode to MP4 with hardware scaling and real-time statistics
+      // 5. FFmpeg encode to MP4 with hardware scaling, silent audio, and faststart
       onProgress?.call(0.52, '正在压制 MP4 视频...');
       final totalTargetFrames = totalChunks * holdFrames;
 
-      final args = [
-        '-y',
-        '-framerate',
-        '$fps',
-        '-i',
-        '${framesDir.path}/frame_%06d.png',
-        '-vf',
-        'scale=$width:$height:flags=neighbor',
-        '-c:v',
-        'libx264',
-        '-crf',
-        '$crf',
-        '-preset',
-        'fast',
-        '-g',
-        '300',
-        '-pix_fmt',
-        'yuv420p',
-        tempOutFile.path,
-      ];
+      void reportProgress(int f, double? ratio) {
+        if (f > 0 && totalTargetFrames > 0) {
+          final r = ratio ?? (f / totalTargetFrames).clamp(0.0, 1.0);
+          final currentP = 0.52 + 0.45 * r;
+          final statusText = '正在压制视频: $f / $totalTargetFrames 帧 (${(r * 100).toInt()}%)';
+          onProgress?.call(currentP, statusText);
+          NotificationService.showProgress(
+            id: 101,
+            title: 'PixelDrop 正在生成视频...',
+            body: statusText,
+            progress: (currentP * 100).toInt(),
+            maxProgress: 100,
+          );
+        }
+      }
 
-      await FfmpegRunner.execute(
-        args: args,
-        totalExpectedFrames: totalTargetFrames,
-        onProgress: (f, ratio) {
-          if (f > 0 && totalTargetFrames > 0) {
-            final r = ratio ?? (f / totalTargetFrames).clamp(0.0, 1.0);
-            final currentP = 0.52 + 0.45 * r;
-            final statusText = '正在压制视频: $f / $totalTargetFrames 帧 (${(r * 100).toInt()}%)';
-            onProgress?.call(currentP, statusText);
-            NotificationService.showProgress(
-              id: 101,
-              title: 'PixelDrop 正在生成视频...',
-              body: statusText,
-              progress: (currentP * 100).toInt(),
-              maxProgress: 100,
-            );
-          }
-        },
+      final framesPattern = '${framesDir.path}/frame_%06d.png';
+      final args = buildFfmpegArgs(
+        framesPattern: framesPattern,
+        outputPath: tempOutFile.path,
+        fps: fps,
+        width: width,
+        height: height,
+        crf: crf,
+        gop: 60,
+        includeSilentAudio: includeSilentAudio,
       );
+
+      try {
+        await FfmpegRunner.execute(
+          args: args,
+          totalExpectedFrames: totalTargetFrames,
+          onProgress: reportProgress,
+        );
+      } catch (err) {
+        if (includeSilentAudio) {
+          // Graceful fallback to video-only if audio synthesis or filter fails
+          final fallbackArgs = buildFfmpegArgs(
+            framesPattern: framesPattern,
+            outputPath: tempOutFile.path,
+            fps: fps,
+            width: width,
+            height: height,
+            crf: crf,
+            gop: 60,
+            includeSilentAudio: false,
+          );
+          await FfmpegRunner.execute(
+            args: fallbackArgs,
+            totalExpectedFrames: totalTargetFrames,
+            onProgress: reportProgress,
+          );
+        } else {
+          rethrow;
+        }
+      }
     } finally {
       // Clean up temporary PNG frames
       try {

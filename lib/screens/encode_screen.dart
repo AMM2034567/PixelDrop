@@ -28,6 +28,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
   int _resolution = 1080; // 1080 or 720
   int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
   int _workerThreads = 0; // 0 = 自动 (平台自适应)
+  bool _enablePlatformCompat = true; // 注入 AAC 静音轨与 FastStart 平台免压增强
   bool _isEncoding = false;
   bool _isDragging = false;
   double _progress = 0.0;
@@ -177,6 +178,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         holdFrames: _holdFrames,
         crf: PixelEncoderService.defaultCrf,
         workerCount: _workerThreads > 0 ? _workerThreads : null,
+        includeSilentAudio: _enablePlatformCompat,
         onProgress: (p, status) {
           setState(() {
             _progress = p;
@@ -806,6 +808,48 @@ class _EncodeScreenState extends State<EncodeScreen> {
                   : '移动端设备专属调优：采用 $_activeWorkers 线程保守并发，平衡点阵帧渲染性能与发热功耗，防止触发低内存清理 (LMK)。',
               style: theme.textTheme.bodySmall?.copyWith(
                 color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '平台免压与音轨兼容',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Material(
+              color: colorScheme.surfaceContainerHighest.withOpacity(0.35),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                  color: _enablePlatformCompat
+                      ? colorScheme.primary.withOpacity(0.25)
+                      : colorScheme.outlineVariant.withOpacity(0.2),
+                ),
+              ),
+              child: SwitchListTile(
+                value: _enablePlatformCompat,
+                onChanged: _isEncoding
+                    ? null
+                    : (val) => setState(() => _enablePlatformCompat = val),
+                title: Text(
+                  '社交平台免压兼容 (静音轨 + FastStart)',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  '注入轻量 AAC 静音轨与 Web 快速启动头，防微信视频号、抖音等平台无声拦截或强制二次劣化压缩。',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                secondary: Icon(
+                  _enablePlatformCompat ? Icons.music_video_rounded : Icons.music_off_outlined,
+                  color: _enablePlatformCompat ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               ),
             ),
           ],

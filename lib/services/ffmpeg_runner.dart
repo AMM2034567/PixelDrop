@@ -14,12 +14,17 @@ class FfmpegRunner {
   static String? _cachedFfmpegCliPath;
   static bool _hasProbedCli = false;
 
-  /// Validates that the FFmpeg executable at [path] can be spawned and responds to `-version`.
+  /// Validates that the FFmpeg executable at [path] can be spawned and supports video encoding (e.g. libx264).
   static Future<bool> _isValidFfmpeg(String path) async {
     try {
-      final res = await Process.run(path, ['-version'])
+      final res = await Process.run(path, ['-encoders'])
           .timeout(const Duration(seconds: 2));
-      return res.exitCode == 0;
+      if (res.exitCode == 0) {
+        return res.stdout.toString().contains('libx264');
+      }
+      final verRes = await Process.run(path, ['-version'])
+          .timeout(const Duration(seconds: 2));
+      return verRes.exitCode == 0;
     } catch (_) {
       return false;
     }
@@ -87,8 +92,8 @@ class FfmpegRunner {
       r'C:\ffmpeg\bin\ffmpeg.exe',
       r'D:\ffmpeg\bin\ffmpeg.exe',
       r'E:\ffmpeg\bin\ffmpeg.exe',
-      r'D:\AIMP\Plugins\enc_ffmpeg\ffmpeg.exe',
       r'D:\deepin\SpleeterGUI\ffmpeg.exe',
+      r'D:\AIMP\Plugins\enc_ffmpeg\ffmpeg.exe',
     ];
 
     for (final p in candidatePaths) {
