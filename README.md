@@ -80,16 +80,16 @@
 
 ```mermaid
 flowchart LR
-    subgraph 编码流水线 (Encode Pipeline)
+    subgraph encode ["编码流水线 (Encode Pipeline)"]
         A["输入：文件 / 文件夹 / 多文件"] --> B["扫描归集 & 流式 ZIP 封包"]
         B --> C["注入元数据头 (文件名、SHA256、GZip)"]
         C --> D["Cauchy RS FEC 冗余编码 (时间纠删码)"]
         D --> E["多核 Isolate 并行渲染点阵帧 (PNG)"]
-        E --> F["FFmpeg 合成 (RGB24 ➔ YUV420p + AAC 静音轨 + faststart)"]
+        E --> F["FFmpeg 合成 (RGB24 -> YUV420p + AAC 静音轨 + faststart)"]
         F --> G["输出：PixelDrop MP4 视频"]
     end
 
-    subgraph 解码流水线 (Decode Pipeline)
+    subgraph decode ["解码流水线 (Decode Pipeline)"]
         G --> H["载入 MP4 视频"]
         H --> I["FFmpeg Raw 视频流灰度直读 (跳过音频轨)"]
         I --> J["网格自适应采样 & CRC32 快速过滤"]
