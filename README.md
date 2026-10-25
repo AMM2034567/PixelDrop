@@ -41,6 +41,24 @@
 
 ---
 
+## 🖼️ 界面预览 (Screenshots)
+
+### 🪟 Windows 桌面端
+
+| 编码生成视频 (File to Video) | 解码还原文件 (Video to File) |
+| :---: | :---: |
+| <img src="docs/screenshots/desktop_encode.png" width="460" alt="Windows Desktop Encode" /> | <img src="docs/screenshots/desktop_decode.png" width="460" alt="Windows Desktop Decode" /> |
+| *多规格切换、多核并行加速、静音轨与 FEC 容灾配置* | *100% SHA-256 比特级无损校验、一键解压归档* |
+
+### 🤖 Android 移动端
+
+| 移动端编码 (File to Video) | 移动端解码 (Video to File) |
+| :---: | :---: |
+| <img src="docs/screenshots/mobile_encode.jpg" width="300" alt="Android Mobile Encode" /> | <img src="docs/screenshots/mobile_decode.jpg" width="300" alt="Android Mobile Decode" /> |
+| *系统分享直达装配、沉浸式点阵配置* | *原生视频硬件加速解析、瞬时校验与提取* |
+
+---
+
 ## ✨ 核心特性 (Key Features)
 
 ### 💎 1. 比特级无损与 SHA-256 完整性
