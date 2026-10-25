@@ -85,12 +85,16 @@ class StorageHelper {
     return await OpenFilex.open(dir.path);
   }
 
-  /// Locates and selects the specific file inside Windows Explorer.
-  static Future<OpenResult> showInExplorer(File file) async {
+  /// Locates and selects the specific file inside Windows Explorer, or opens the directory.
+  static Future<OpenResult> showInExplorer(FileSystemEntity entity) async {
+    if (entity is Directory) {
+      return await openDirectory(entity);
+    }
+    final file = entity is File ? entity : File(entity.path);
     if (Platform.isWindows && await file.exists()) {
       try {
         final normPath = file.path.replaceAll('/', '\\');
-        await Process.run('explorer.exe', ['/select,', normPath]);
+        await Process.run('explorer.exe', ['/select,$normPath']);
         return OpenResult(type: ResultType.done, message: 'Done');
       } catch (_) {}
     }

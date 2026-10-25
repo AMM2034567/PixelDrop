@@ -5,12 +5,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import '../services/foreground_service.dart';
 import '../services/wakelock_helper.dart';
 import '../services/pixel_encoder.dart';
 import '../services/storage_helper.dart';
 import '../models/history_record.dart';
 import '../services/history_service.dart';
+import '../services/archive_service.dart';
 
 class EncodeScreen extends StatefulWidget {
   const EncodeScreen({super.key});
@@ -20,7 +23,7 @@ class EncodeScreen extends StatefulWidget {
 }
 
 class _EncodeScreenState extends State<EncodeScreen> {
-  File? _selectedFile;
+  SelectedInput? _selectedInput;
   int _blockSize = 4; // 2, 4, or 8
   int _resolution = 1080; // 1080 or 720
   int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
@@ -36,38 +39,137 @@ class _EncodeScreenState extends State<EncodeScreen> {
   int get _optimalWorkers => PixelEncoderService.getOptimalWorkerCount();
   int get _activeWorkers => _workerThreads > 0 ? _workerThreads : _optimalWorkers;
 
-  void _pickFile() async {
-    final result = await FilePicker.platform.pickFiles();
-    if (result != null && result.files.single.path != null) {
+  void _pickFiles() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(allowMultiple: true);
+      if (result != null && result.paths.isNotEmpty) {
+        final validPaths = result.paths.whereType<String>().toList();
+        if (validPaths.isNotEmpty) {
+          await _processSelectedPaths(validPaths);
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('选择文件出错: $e')),
+      );
+    }
+  }
+
+  void _pickDirectory() async {
+    try {
+      final dirPath = await FilePicker.platform.getDirectoryPath();
+      if (dirPath != null && dirPath.isNotEmpty) {
+        await _processSelectedPaths([dirPath]);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('选择文件夹出错: $e')),
+      );
+    }
+  }
+
+  Future<void> _processSelectedPaths(List<String> paths) async {
+    try {
+      final input = await ArchiveService.scanInputPaths(paths);
       setState(() {
-        _selectedFile = File(result.files.single.path!);
+        _selectedInput = input;
         _result = null;
         _progress = 0.0;
         _statusText = '';
       });
+      if (!mounted) return;
+      if (input.type == SelectedInputType.directory) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已导入文件夹: ${input.displayName} (包含 ${input.fileCount} 个文件)')),
+        );
+      } else if (input.type == SelectedInputType.multipleItems) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已导入 ${input.paths.length} 个项目 (包含 ${input.fileCount} 个文件)')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入失败: $e')),
+      );
     }
   }
 
   void _startEncoding() async {
-    if (_selectedFile == null || _isEncoding) return;
+    final input = _selectedInput;
+    if (input == null || _isEncoding) return;
+
+    if (input.fileCount == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(input.type == SelectedInputType.directory
+              ? '所选文件夹为空，没有可打包的文件'
+              : '所选项目为空，没有可打包的文件'),
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isEncoding = true;
       _progress = 0.0;
-      _statusText = '准备编码数据...';
+      _statusText = input.needsArchive ? '准备打包归档文件...' : '准备编码数据...';
       _result = null;
     });
 
     await WakelockHelper.enable();
     await ForegroundServiceHelper.start(
       title: 'PixelDrop 正在生成视频',
-      content: '正在准备像素点阵...',
+      content: input.needsArchive ? '正在打包归档文件...' : '正在准备像素点阵...',
       progress: 0,
     );
 
+    File? tempArchiveFile;
+    Directory? tempArchiveDir;
+
     try {
+      File fileToEncode;
+
+      if (input.needsArchive) {
+        // 1. Packaging Archive Phase
+        final tempDir = await getTemporaryDirectory();
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        tempArchiveDir = Directory(p.join(tempDir.path, 'pixeldrop_archives', '$timestamp'))
+          ..createSync(recursive: true);
+        final outZipPath = p.join(tempArchiveDir.path, input.suggestedArchiveName);
+
+        tempArchiveFile = await ArchiveService.createZipArchive(
+          entries: input.entries,
+          outputZipPath: outZipPath,
+          onProgress: (ratio, status) {
+            setState(() {
+              _progress = ratio;
+              _statusText = status;
+            });
+            ForegroundServiceHelper.update(
+              title: 'PixelDrop 正在打包归档',
+              content: status,
+              progress: (ratio * 100).toInt(),
+            );
+          },
+        );
+
+        fileToEncode = tempArchiveFile;
+      } else {
+        // Single file directly
+        fileToEncode = input.singleFile!;
+      }
+
+      // 2. Video Encoding Phase
+      setState(() {
+        _progress = 0.0;
+        _statusText = '准备编码数据...';
+      });
+
       final res = await PixelEncoderService.encodeFileToVideo(
-        inputFile: _selectedFile!,
+        inputFile: fileToEncode,
         blockSize: _blockSize,
         width: _resolution == 1080 ? 1920 : 1280,
         height: _resolution == 1080 ? 1080 : 720,
@@ -131,6 +233,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
         ),
       );
     } finally {
+      if (tempArchiveDir != null && tempArchiveDir.existsSync()) {
+        try {
+          tempArchiveDir.deleteSync(recursive: true);
+        } catch (_) {}
+      }
       await ForegroundServiceHelper.stop();
       await WakelockHelper.disable();
     }
@@ -154,28 +261,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
       onDragExited: (details) {
         setState(() => _isDragging = false);
       },
-      onDragDone: (details) {
+      onDragDone: (details) async {
         setState(() => _isDragging = false);
         if (!_isEncoding && details.files.isNotEmpty) {
-          final dropped = details.files.first;
-          final entityType = FileSystemEntity.typeSync(dropped.path);
-          if (entityType == FileSystemEntityType.directory) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('PixelDrop 暂不支持直接拖拽文件夹，请拖拽文件或先压缩为 ZIP')),
-            );
-            return;
-          }
-          setState(() {
-            _selectedFile = File(dropped.path);
-            _result = null;
-            _progress = 0.0;
-            _statusText = '';
-          });
-          if (details.files.length > 1) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('已导入第 1 个文件: ${details.files.first.name}')),
-            );
-          }
+          final paths = details.files.map((f) => f.path).toList();
+          await _processSelectedPaths(paths);
         }
       },
       child: Stack(
@@ -198,7 +288,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
 
                     // 3. Action Button
                     FilledButton.icon(
-                      onPressed: (_selectedFile != null && !_isEncoding) ? _startEncoding : null,
+                      onPressed: (_selectedInput != null && !_isEncoding) ? _startEncoding : null,
                       icon: _isEncoding
                           ? SizedBox(
                               width: 20,
@@ -209,7 +299,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
                               ),
                             )
                           : const Icon(Icons.movie_creation_outlined),
-                      label: Text(_isEncoding ? '正在生成视频...' : '开始生成视频'),
+                      label: Text(_isEncoding
+                          ? (_selectedInput?.needsArchive == true && _statusText.contains('打包')
+                              ? '正在打包归档...'
+                              : '正在生成视频...')
+                          : (_selectedInput?.needsArchive == true ? '打包并生成视频' : '开始生成视频')),
                     ),
                     const SizedBox(height: 16),
 
@@ -245,13 +339,13 @@ class _EncodeScreenState extends State<EncodeScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.file_download_rounded,
+                          Icons.drive_folder_upload_rounded,
                           size: 56,
                           color: colorScheme.onPrimaryContainer,
                         ),
                         const SizedBox(height: 14),
                         Text(
-                          '松开鼠标以导入此文件',
+                          '松开鼠标以导入文件或文件夹',
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: colorScheme.onPrimaryContainer,
@@ -272,112 +366,205 @@ class _EncodeScreenState extends State<EncodeScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    if (_selectedFile == null) {
+    if (_selectedInput == null) {
       return Card(
-        child: InkWell(
-          onTap: _isEncoding ? null : _pickFile,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-            child: Column(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.upload_file_rounded,
-                    size: 28,
-                    color: colorScheme.primary,
-                  ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          child: Column(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 14),
-                Text(
-                  '选择待转换文件',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                child: Icon(
+                  Icons.drive_folder_upload_rounded,
+                  size: 28,
+                  color: colorScheme.primary,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  Platform.isWindows
-                      ? '支持任意类型文件（点击选择或直接拖拽至窗口）'
-                      : '支持任意类型文件（文档、压缩包、图片等）',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '选择待转换文件',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                Platform.isWindows
+                    ? '支持单文件、多文件拖拽或整个文件夹一键打包'
+                    : '支持单文件、多文件或整个文件夹一键打包',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  FilledButton.tonalIcon(
+                    onPressed: _isEncoding ? null : _pickFiles,
+                    icon: const Icon(Icons.file_open_outlined, size: 18),
+                    label: const Text('选择文件 (支持多选)'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: _isEncoding ? null : _pickDirectory,
+                    icon: const Icon(Icons.folder_open_rounded, size: 18),
+                    label: const Text('选择文件夹'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       );
     }
 
-    final filename = Uri.decodeComponent(_selectedFile!.uri.pathSegments.last);
-    final fileSize = _selectedFile!.existsSync() ? _formatBytes(_selectedFile!.lengthSync()) : '未知大小';
+    final input = _selectedInput!;
+    final IconData typeIcon;
+    final String typeSubtitle;
+
+    switch (input.type) {
+      case SelectedInputType.singleFile:
+        typeIcon = Icons.insert_drive_file_rounded;
+        typeSubtitle = '大小: ${_formatBytes(input.totalSize)}';
+        break;
+      case SelectedInputType.directory:
+        typeIcon = Icons.folder_rounded;
+        typeSubtitle = '文件夹 · 包含 ${input.fileCount} 个文件，共 ${_formatBytes(input.totalSize)}';
+        break;
+      case SelectedInputType.multipleItems:
+        typeIcon = Icons.inventory_2_rounded;
+        typeSubtitle = '包含 ${input.fileCount} 个文件，共 ${_formatBytes(input.totalSize)}';
+        break;
+    }
 
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.insert_drive_file_rounded,
-                color: colorScheme.onPrimaryContainer,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    filename,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '大小: $fileSize',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+                  child: Icon(
+                    typeIcon,
+                    color: colorScheme.onPrimaryContainer,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        input.displayName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        typeSubtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (!_isEncoding) ...[
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedInput = null;
+                        _result = null;
+                        _progress = 0.0;
+                        _statusText = '';
+                      });
+                    },
+                    tooltip: '清除选择',
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: '更换选择',
+                    icon: const Icon(Icons.swap_horiz_rounded, size: 20),
+                    onSelected: (val) {
+                      if (val == 'files') {
+                        _pickFiles();
+                      } else if (val == 'folder') {
+                        _pickDirectory();
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      const PopupMenuItem(
+                        value: 'files',
+                        child: Row(
+                          children: [
+                            Icon(Icons.file_open_outlined, size: 18),
+                            SizedBox(width: 8),
+                            Text('更换文件 (多选)'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'folder',
+                        child: Row(
+                          children: [
+                            Icon(Icons.folder_open_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text('更换文件夹'),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
+              ],
             ),
-            if (!_isEncoding) ...[
-              IconButton(
-                onPressed: () {
-                  setState(() {
-                    _selectedFile = null;
-                    _result = null;
-                    _progress = 0.0;
-                    _statusText = '';
-                  });
-                },
-                tooltip: '清除选择',
-                icon: const Icon(Icons.close_rounded, size: 20),
-              ),
-              TextButton.icon(
-                onPressed: _pickFile,
-                icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                label: const Text('更换'),
+            if (input.needsArchive) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.archive_outlined,
+                      size: 15,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '自动打包归档为: ${input.suggestedArchiveName}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],

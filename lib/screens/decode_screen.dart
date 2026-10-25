@@ -11,6 +11,7 @@ import '../services/pixel_decoder.dart';
 import '../services/storage_helper.dart';
 import '../models/history_record.dart';
 import '../services/history_service.dart';
+import '../services/archive_service.dart';
 
 class DecodeScreen extends StatefulWidget {
   final DecodeResult? initialResult;
@@ -25,15 +26,37 @@ class _DecodeScreenState extends State<DecodeScreen> {
   int _blockSize = 0; // 0 = 自动识别, 2, 4, or 8
   bool _isDecoding = false;
   bool _isDragging = false;
+  bool _isExtracting = false;
+  double _extractProgress = 0.0;
+  String _extractStatus = '';
+  String? _extractedDirPath;
   double _progress = 0.0;
   String _statusText = '';
   DecodeResult? _result;
+
+  bool get _isZipArchive =>
+      _result != null &&
+      (_result!.filename.toLowerCase().endsWith('.zip') ||
+          _result!.restoredFile.path.toLowerCase().endsWith('.zip'));
 
   @override
   void initState() {
     super.initState();
     if (widget.initialResult != null) {
       _result = widget.initialResult;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DecodeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialResult != oldWidget.initialResult) {
+      setState(() {
+        _result = widget.initialResult;
+        _extractedDirPath = null;
+        _extractProgress = 0.0;
+        _extractStatus = '';
+      });
     }
   }
 
@@ -48,7 +71,59 @@ class _DecodeScreenState extends State<DecodeScreen> {
         _result = null;
         _progress = 0.0;
         _statusText = '';
+        _extractedDirPath = null;
+        _extractProgress = 0.0;
+        _extractStatus = '';
       });
+    }
+  }
+
+  void _extractArchive() async {
+    if (_result == null || _isExtracting) return;
+
+    setState(() {
+      _isExtracting = true;
+      _extractProgress = 0.0;
+      _extractStatus = '准备解压归档包...';
+    });
+
+    try {
+      final destDir = await ArchiveService.extractZipArchive(
+        zipFile: _result!.restoredFile,
+        onProgress: (p, status) {
+          setState(() {
+            _extractProgress = p;
+            _extractStatus = status;
+          });
+        },
+      );
+
+      setState(() {
+        _isExtracting = false;
+        _extractedDirPath = destDir.path;
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('已成功解压至: ${destDir.path}'),
+          action: SnackBarAction(
+            label: '定位目录',
+            onPressed: () {
+              StorageHelper.showInExplorer(destDir);
+            },
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _isExtracting = false;
+        _extractStatus = '解压失败: $e';
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('解压失败: $e')),
+      );
     }
   }
 
@@ -60,6 +135,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
       _progress = 0.0;
       _statusText = '准备解析视频...';
       _result = null;
+      _extractedDirPath = null;
     });
 
     await WakelockHelper.enable();
@@ -367,6 +443,7 @@ class _DecodeScreenState extends State<DecodeScreen> {
                     _result = null;
                     _progress = 0.0;
                     _statusText = '';
+                    _extractedDirPath = null;
                   });
                 },
                 tooltip: '清除选择',
@@ -630,6 +707,67 @@ class _DecodeScreenState extends State<DecodeScreen> {
             ),
             const SizedBox(height: 18),
 
+            // Zip Archive Extraction Section
+            if (_isZipArchive) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colorScheme.secondaryContainer.withOpacity(0.4),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colorScheme.secondary.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.folder_zip_rounded, color: colorScheme.secondary, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _extractedDirPath != null
+                            ? '已成功解压至: $_extractedDirPath'
+                            : '检测到还原文件为 ZIP 归档包，支持一键解压到当前目录',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _isExtracting ? null : _extractArchive,
+                  icon: _isExtracting
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colorScheme.onPrimary,
+                          ),
+                        )
+                      : const Icon(Icons.unarchive_rounded, size: 18),
+                  label: Text(_isExtracting
+                      ? (_extractStatus.isNotEmpty ? _extractStatus : '正在解压中...')
+                      : '一键解压 (解压到当前目录)'),
+                ),
+              ),
+              if (_isExtracting && _extractProgress > 0) ...[
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: _extractProgress,
+                    minHeight: 4,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+
             // Actions
             Row(
               children: [
@@ -654,7 +792,10 @@ class _DecodeScreenState extends State<DecodeScreen> {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final openRes = await StorageHelper.showInExplorer(_result!.restoredFile);
+                      final targetDir = _extractedDirPath != null
+                          ? Directory(_extractedDirPath!)
+                          : _result!.restoredFile;
+                      final openRes = await StorageHelper.showInExplorer(targetDir);
                       if (openRes.type != ResultType.done && context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('无法定位目录: ${openRes.message}')),
