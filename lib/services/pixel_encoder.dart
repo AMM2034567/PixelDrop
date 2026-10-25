@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
 import 'ffmpeg_runner.dart';
 import 'notification_service.dart';
+import 'pixel_fec.dart';
 import 'storage_helper.dart';
 
 class EncodeResult {
@@ -28,10 +29,9 @@ class EncodeResult {
 
 class _RenderWorkerArgs {
   final SendPort sendPort;
-  final List<Uint8List> chunks;
-  final int startChunkIndex;
-  final int totalChunks;
-  final int frameCapacity;
+  final List<Uint8List> frames;
+  final int startFrameIndex;
+  final int totalFrames;
   final int gridW;
   final int gridH;
   final int holdFrames;
@@ -40,10 +40,9 @@ class _RenderWorkerArgs {
 
   _RenderWorkerArgs({
     required this.sendPort,
-    required this.chunks,
-    required this.startChunkIndex,
-    required this.totalChunks,
-    required this.frameCapacity,
+    required this.frames,
+    required this.startFrameIndex,
+    required this.totalFrames,
     required this.gridW,
     required this.gridH,
     required this.holdFrames,
@@ -53,22 +52,15 @@ class _RenderWorkerArgs {
 }
 
 /// Background Isolate worker for parallel frame generation.
-/// Each worker processes a disjoint sublist of chunks and writes deterministically
+/// Each worker processes a disjoint sublist of frames and writes deterministically
 /// numbered PNG frames directly into [args.framesDirPath].
 void _renderFramesWorker(_RenderWorkerArgs args) {
   try {
     final dotCount = args.gridW * args.gridH;
 
-    for (int i = 0; i < args.chunks.length; i++) {
-      final chunkIdx = args.startChunkIndex + i;
-      final chunk = args.chunks[i];
-      final frameRaw = PixelProtocol.buildFrame(
-        args.totalChunks,
-        chunkIdx,
-        chunk,
-        args.frameCapacity,
-        version: args.version,
-      );
+    for (int i = 0; i < args.frames.length; i++) {
+      final frameIdx = args.startFrameIndex + i;
+      final frameRaw = args.frames[i];
 
       // 3-channel RGB image (480x270, 320x180, etc.)
       final smallImg = img.Image(
@@ -105,8 +97,7 @@ void _renderFramesWorker(_RenderWorkerArgs args) {
       final pngBytes = img.encodePng(smallImg, level: 1);
 
       // Deterministic frame index calculation:
-      // Chunk idx generates frames from 1 + chunkIdx * holdFrames to (chunkIdx + 1) * holdFrames.
-      final startFrameNumber = 1 + chunkIdx * args.holdFrames;
+      final startFrameNumber = 1 + frameIdx * args.holdFrames;
       for (int h = 0; h < args.holdFrames; h++) {
         final frameNumber = startFrameNumber + h;
         final framePath =
@@ -114,7 +105,7 @@ void _renderFramesWorker(_RenderWorkerArgs args) {
         File(framePath).writeAsBytesSync(pngBytes, flush: false);
       }
 
-      // Signal 1 chunk completed
+      // Signal 1 frame completed
       args.sendPort.send(1);
     }
   } catch (e) {
@@ -221,6 +212,8 @@ class PixelEncoderService {
     int holdFrames = defaultHoldFrames,
     int crf = defaultCrf,
     int version = 2,
+    int fecPercent = 0,
+    bool? includeGuardFrames,
     int? workerCount,
     bool includeSilentAudio = true,
     Function(double progress, String status)? onProgress,
@@ -267,7 +260,61 @@ class PixelEncoderService {
     }
     final totalChunks = chunks.length;
 
-    // 4. Render frames in background Isolate worker pool with real-time aggregated progress
+    // 4. Build data frames and optional FEC recovery frames
+    final dataFrames = <Uint8List>[];
+    for (int i = 0; i < chunks.length; i++) {
+      dataFrames.add(
+        PixelProtocol.buildFrame(
+          totalChunks,
+          i,
+          chunks[i],
+          frameCapacity,
+          version: version,
+        ),
+      );
+    }
+
+    final fecPackets = (fecPercent > 0)
+        ? PixelFec.generateParityPackets(
+            dataChunks: chunks,
+            redundancyPercent: fecPercent,
+            chunkPayloadCapacity: chunkPayloadCapacity,
+          )
+        : <FecPacket>[];
+
+    final fecFrames = <Uint8List>[];
+    for (final fec in fecPackets) {
+      fecFrames.add(
+        PixelProtocol.buildFecFrame(
+          dataTotal: totalChunks,
+          fecIndex: fec.packedFecId,
+          fecTotal: FecPacket.packTotalInfo(
+            (totalChunks + PixelFec.maxGroupDataChunks - 1) ~/ PixelFec.maxGroupDataChunks,
+            fec.fecTotalInGroup,
+          ),
+          lastChunkLen: fec.lastChunkLen,
+          parityChunk: fec.payload,
+          targetCapacity: frameCapacity,
+          version: version,
+        ),
+      );
+    }
+
+    // Assemble all frames with guard frames (if enabled or when FEC is active)
+    final bool useGuard = includeGuardFrames ?? (fecPercent > 0);
+    final allFrames = <Uint8List>[];
+    if (useGuard && dataFrames.isNotEmpty) {
+      allFrames.add(dataFrames.first); // Lead-in guard frame
+    }
+    allFrames.addAll(dataFrames);
+    allFrames.addAll(fecFrames);
+    if (useGuard && allFrames.isNotEmpty) {
+      allFrames.add(allFrames.last); // Lead-out guard frame
+    }
+
+    final totalFramesToRender = allFrames.length;
+
+    // 5. Render frames in background Isolate worker pool with real-time aggregated progress
     Directory tempDir;
     try {
       tempDir = await getTemporaryDirectory();
@@ -281,18 +328,19 @@ class PixelEncoderService {
 
     try {
       final optimalWorkers = getOptimalWorkerCount(workerCount);
-      final effectiveWorkers = optimalWorkers.clamp(1, totalChunks);
+      final effectiveWorkers = optimalWorkers.clamp(1, totalFramesToRender);
+      final fecInfo = fecPercent > 0 ? ' · 容灾 FEC $fecPercent%' : '';
       onProgress?.call(
         0.05,
-        '正在生成点阵帧 ($totalChunks 帧 · $effectiveWorkers 线程并行)...',
+        '正在生成点阵帧 ($totalFramesToRender 帧 · $effectiveWorkers 线程并行$fecInfo)...',
       );
 
       final receivePort = ReceivePort();
       final spawnedIsolates = <Isolate>[];
       int activeWorkers = 0;
 
-      final baseCount = totalChunks ~/ effectiveWorkers;
-      final remainder = totalChunks % effectiveWorkers;
+      final baseCount = totalFramesToRender ~/ effectiveWorkers;
+      final remainder = totalFramesToRender % effectiveWorkers;
       int currentStart = 0;
 
       for (int w = 0; w < effectiveWorkers; w++) {
@@ -302,15 +350,14 @@ class PixelEncoderService {
         final endIdx = currentStart + count;
         currentStart = endIdx;
 
-        final workerChunks = chunks.sublist(startIdx, endIdx);
+        final workerFrames = allFrames.sublist(startIdx, endIdx);
         final iso = await Isolate.spawn(
           _renderFramesWorker,
           _RenderWorkerArgs(
             sendPort: receivePort.sendPort,
-            chunks: workerChunks,
-            startChunkIndex: startIdx,
-            totalChunks: totalChunks,
-            frameCapacity: frameCapacity,
+            frames: workerFrames,
+            startFrameIndex: startIdx,
+            totalFrames: totalFramesToRender,
             gridW: gridW,
             gridH: gridH,
             holdFrames: holdFrames,
@@ -324,24 +371,24 @@ class PixelEncoderService {
       }
 
       int completedWorkers = 0;
-      int completedChunks = 0;
+      int completedFramesCount = 0;
       int lastReportTime = 0;
       String? workerError;
 
       try {
         await for (final msg in receivePort) {
           if (msg is int) {
-            completedChunks += msg;
+            completedFramesCount += msg;
             final now = DateTime.now().millisecondsSinceEpoch;
-            final isFirst = completedChunks == 1;
-            final isLast = completedChunks >= totalChunks;
+            final isFirst = completedFramesCount == 1;
+            final isLast = completedFramesCount >= totalFramesToRender;
             // Smooth UI updates: report on first, last, or at least every 50ms
             if (isFirst || isLast || (now - lastReportTime >= 50)) {
               lastReportTime = now;
-              final progressRatio = (completedChunks / totalChunks).clamp(0.0, 1.0);
+              final progressRatio = (completedFramesCount / totalFramesToRender).clamp(0.0, 1.0);
               final currentP = 0.05 + 0.45 * progressRatio;
               final statusText =
-                  '生成点阵帧: $completedChunks / $totalChunks (${(progressRatio * 100).toInt()}%)';
+                  '生成点阵帧: $completedFramesCount / $totalFramesToRender (${(progressRatio * 100).toInt()}%)';
               onProgress?.call(currentP, statusText);
               NotificationService.showProgress(
                 id: 101,
@@ -376,9 +423,9 @@ class PixelEncoderService {
         throw Exception('点阵帧并行生成失败: $workerError');
       }
 
-      // 5. FFmpeg encode to MP4 with hardware scaling, silent audio, and faststart
+      // 6. FFmpeg encode to MP4 with hardware scaling, silent audio, and faststart
       onProgress?.call(0.52, '正在压制 MP4 视频...');
-      final totalTargetFrames = totalChunks * holdFrames;
+      final totalTargetFrames = totalFramesToRender * holdFrames;
 
       void reportProgress(int f, double? ratio) {
         if (f > 0 && totalTargetFrames > 0) {

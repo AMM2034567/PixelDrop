@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../models/pixel_packet.dart';
 import 'ffmpeg_runner.dart';
 import 'notification_service.dart';
+import 'pixel_fec.dart';
 import 'storage_helper.dart';
 
 class DecodeResult {
@@ -16,6 +17,7 @@ class DecodeResult {
   final String sha256;
   final bool isSha256Matched;
   final int detectedBlockSize;
+  final int fecRecoveredCount;
 
   DecodeResult({
     required this.restoredFile,
@@ -24,6 +26,7 @@ class DecodeResult {
     required this.sha256,
     required this.isSha256Matched,
     required this.detectedBlockSize,
+    this.fecRecoveredCount = 0,
   });
 }
 
@@ -61,20 +64,25 @@ class _ScanProgressMsg {
 
 class _ScanDoneMsg {
   final Map<int, Uint8List> collectedChunks;
+  final Map<int, FrameParseResult> collectedFec;
   final int? totalChunks;
+  final int detectedVersion;
 
   _ScanDoneMsg({
     required this.collectedChunks,
+    required this.collectedFec,
     required this.totalChunks,
+    required this.detectedVersion,
   });
 }
 
 /// Background Isolate worker: reads raw RGB frames directly and unpacks bits with integer registers.
-/// Supports both v2 (RGB 8-color, PD02) and legacy v1 (monochrome, PXL1).
+/// Supports both v2 (RGB 8-color, PD02/PDF2) and legacy v1 (monochrome, PXL1/PXF1).
 void _scanRawFramesWorker(_RawScanArgs args) {
   final file = File(args.rawFilePath);
   final raf = file.openSync(mode: FileMode.read);
   final Map<int, Uint8List> collected = {};
+  final Map<int, FrameParseResult> collectedFec = {};
   int? totalChunksExpected;
   int? detectedVersion; // 2 for RGB color, 1 for monochrome
 
@@ -92,7 +100,7 @@ void _scanRawFramesWorker(_RawScanArgs args) {
 
     FrameParseResult? parsed;
 
-    // 1. Try RGB color protocol (v2, PD02) if version not fixed to 1
+    // 1. Try RGB color protocol (v2, PD02 / PDF2) if version not fixed to 1
     if (detectedVersion == null || detectedVersion == 2) {
       packedColor.fillRange(0, packedColor.length, 0);
       int acc = 0;
@@ -126,7 +134,7 @@ void _scanRawFramesWorker(_RawScanArgs args) {
       }
     }
 
-    // 2. If color parse failed and version not fixed to 2, test monochrome (v1, PXL1)
+    // 2. If color parse failed and version not fixed to 2, test monochrome (v1, PXL1 / PXF1)
     if (parsed == null && (detectedVersion == null || detectedVersion == 1)) {
       packedMono.fillRange(0, packedMono.length, 0);
       for (int i = 0; i < dotCount; i++) {
@@ -142,10 +150,20 @@ void _scanRawFramesWorker(_RawScanArgs args) {
 
     if (parsed != null) {
       totalChunksExpected = parsed.totalChunks;
-      if (!collected.containsKey(parsed.chunkIndex)) {
-        collected[parsed.chunkIndex] = Uint8List.fromList(parsed.payload);
+      bool isNew = false;
+      if (!parsed.isFec) {
+        if (!collected.containsKey(parsed.chunkIndex)) {
+          collected[parsed.chunkIndex] = Uint8List.fromList(parsed.payload);
+          isNew = true;
+        }
+      } else {
+        if (!collectedFec.containsKey(parsed.fecIndex)) {
+          collectedFec[parsed.fecIndex] = parsed;
+          isNew = true;
+        }
+      }
 
-        // Send progress update
+      if (isNew) {
         args.sendPort.send(_ScanProgressMsg(
           currentFrame: f + 1,
           totalFrames: args.totalFrames,
@@ -154,6 +172,7 @@ void _scanRawFramesWorker(_RawScanArgs args) {
         ));
       }
 
+      // Early break: if all data chunks are collected without loss, stop scanning immediately
       if (collected.length == totalChunksExpected) {
         break;
       }
@@ -171,7 +190,9 @@ void _scanRawFramesWorker(_RawScanArgs args) {
   raf.closeSync();
   args.sendPort.send(_ScanDoneMsg(
     collectedChunks: collected,
+    collectedFec: collectedFec,
     totalChunks: totalChunksExpected,
+    detectedVersion: detectedVersion ?? 2,
   ));
 }
 
@@ -428,7 +449,9 @@ class PixelDecoderService {
       );
 
       Map<int, Uint8List> collected = {};
+      Map<int, FrameParseResult> collectedFec = {};
       int? totalExpected;
+      int detectedVersion = 2;
 
       await for (final msg in receivePort) {
         if (msg is _ScanProgressMsg) {
@@ -452,15 +475,58 @@ class PixelDecoderService {
           );
         } else if (msg is _ScanDoneMsg) {
           collected = msg.collectedChunks;
+          collectedFec = msg.collectedFec;
           totalExpected = msg.totalChunks;
+          detectedVersion = msg.detectedVersion;
           break;
         }
       }
 
-      if (totalExpected == null || collected.length < totalExpected) {
-        throw Exception(
-          '未能集齐全部数据分块（已收集 ${collected.length}/${totalExpected ?? '?'}，共扫描 $totalFrames 帧）',
+      if (totalExpected == null) {
+        throw Exception('未能从视频中提取出有效的数据帧规格');
+      }
+
+      int fecRecoveredCount = 0;
+      if (collected.length < totalExpected) {
+        final missingCount = totalExpected - collected.length;
+        final dotCount = gridW * gridH;
+        final int bitsPerDot = (detectedVersion == 2) ? 3 : 1;
+        final frameCap = (dotCount * bitsPerDot) ~/ 8;
+        final chunkCap = frameCap - PixelProtocol.headerLen;
+
+        onProgress?.call(
+          0.85,
+          '检测到视频丢失 $missingCount 帧，正在通过 FEC 纠删码恢复 ($missingCount / ${collectedFec.length} 校验块)...',
         );
+
+        final fecPackets = collectedFec.values.map((f) {
+          final groupIndex = f.fecIndex >> 8;
+          final fecIndexInGroup = f.fecIndex & 0xFF;
+          final fecTotalInGroup = f.fecTotal & 0xFF;
+          return FecPacket(
+            groupIndex: groupIndex,
+            fecIndexInGroup: fecIndexInGroup,
+            fecTotalInGroup: fecTotalInGroup,
+            dataTotalInGroup: totalExpected!,
+            startChunkIndex: groupIndex * PixelFec.maxGroupDataChunks,
+            lastChunkLen: f.lastChunkLen,
+            payload: f.payload,
+          );
+        }).toList();
+
+        try {
+          collected = PixelFec.recoverMissingData(
+            totalDataChunks: totalExpected,
+            collectedDataChunks: collected,
+            collectedFecPackets: fecPackets,
+            chunkPayloadCapacity: chunkCap,
+          );
+          fecRecoveredCount = missingCount;
+        } catch (e) {
+          throw Exception(
+            '未能集齐全部数据分块且 FEC 容灾恢复失败（已收集有效数据分块 ${collected.length}/$totalExpected，FEC 校验分块 ${collectedFec.length} 个）：$e',
+          );
+        }
       }
 
       for (int i = 0; i < totalExpected; i++) {
@@ -527,6 +593,7 @@ class PixelDecoderService {
         sha256: actualHash,
         isSha256Matched: isMatched,
         detectedBlockSize: effectiveBlockSize,
+        fecRecoveredCount: fecRecoveredCount,
       );
     } finally {
       // Clean up temporary extraction frames and safe input copy

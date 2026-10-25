@@ -3,8 +3,10 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 
 class PixelProtocol {
-  static const List<int> magicV1 = [0x50, 0x58, 0x4C, 0x31]; // 'PXL1' (Monochrome)
-  static const List<int> magicV2 = [0x50, 0x44, 0x30, 0x32]; // 'PD02' (RGB 8-Color)
+  static const List<int> magicV1 = [0x50, 0x58, 0x4C, 0x31]; // 'PXL1' (Monochrome Data)
+  static const List<int> magicV2 = [0x50, 0x44, 0x30, 0x32]; // 'PD02' (RGB 8-Color Data)
+  static const List<int> magicFecV1 = [0x50, 0x58, 0x46, 0x31]; // 'PXF1' (Monochrome FEC)
+  static const List<int> magicFecV2 = [0x50, 0x44, 0x46, 0x32]; // 'PDF2' (RGB 8-Color FEC)
   static const List<int> magic = magicV2; // Default current magic
   static const int headerLen = 16;
 
@@ -133,13 +135,52 @@ class PixelProtocol {
     return outBytes;
   }
 
+  /// Builds an FEC recovery frame packet with 16-byte header:
+  /// [Magic 4B][DataTotal 2B][FecIndex 2B][FecTotal 2B][LastChunkLen 2B][CRC32 4B] + ParityPayload
+  static Uint8List buildFecFrame({
+    required int dataTotal,
+    required int fecIndex,
+    required int fecTotal,
+    required int lastChunkLen,
+    required Uint8List parityChunk,
+    required int targetCapacity,
+    int version = 2,
+  }) {
+    final buffer = ByteData(targetCapacity);
+    final selectedMagic = (version == 1) ? magicFecV1 : magicFecV2;
+
+    // Magic (4 bytes)
+    buffer.setUint8(0, selectedMagic[0]);
+    buffer.setUint8(1, selectedMagic[1]);
+    buffer.setUint8(2, selectedMagic[2]);
+    buffer.setUint8(3, selectedMagic[3]);
+
+    // dataTotal (2 bytes) & fecIndex (2 bytes)
+    buffer.setUint16(4, dataTotal, Endian.big);
+    buffer.setUint16(6, fecIndex, Endian.big);
+
+    // fecTotal (2 bytes) & lastChunkLen (2 bytes)
+    buffer.setUint16(8, fecTotal, Endian.big);
+    buffer.setUint16(10, lastChunkLen, Endian.big);
+
+    final outBytes = buffer.buffer.asUint8List();
+    outBytes.setRange(headerLen, headerLen + parityChunk.length, parityChunk);
+
+    final payloadSlice = Uint8List.sublistView(outBytes, headerLen, targetCapacity);
+    final crc = getCrc32(payloadSlice);
+    buffer.setUint32(12, crc, Endian.big);
+
+    return outBytes;
+  }
+
   /// Parses a frame packet and verifies CRC32.
-  /// Supports both PD02 (version 2 RGB 8-color) and PXL1 (version 1 monochrome).
+  /// Supports both PD02/PDF2 (version 2 RGB 8-color) and PXL1/PXF1 (version 1 monochrome).
   static FrameParseResult? parseFrame(Uint8List frameRaw) {
     if (frameRaw.length < headerLen) return null;
     final bd = ByteData.sublistView(frameRaw);
 
     int version = 0;
+    bool isFec = false;
     if (frameRaw[0] == magicV2[0] &&
         frameRaw[1] == magicV2[1] &&
         frameRaw[2] == magicV2[2] &&
@@ -150,30 +191,70 @@ class PixelProtocol {
         frameRaw[2] == magicV1[2] &&
         frameRaw[3] == magicV1[3]) {
       version = 1;
+    } else if (frameRaw[0] == magicFecV2[0] &&
+        frameRaw[1] == magicFecV2[1] &&
+        frameRaw[2] == magicFecV2[2] &&
+        frameRaw[3] == magicFecV2[3]) {
+      version = 2;
+      isFec = true;
+    } else if (frameRaw[0] == magicFecV1[0] &&
+        frameRaw[1] == magicFecV1[1] &&
+        frameRaw[2] == magicFecV1[2] &&
+        frameRaw[3] == magicFecV1[3]) {
+      version = 1;
+      isFec = true;
     } else {
       return null;
     }
 
-    final total = bd.getUint16(4, Endian.big);
-    final idx = bd.getUint16(6, Endian.big);
-    final payloadLen = bd.getUint32(8, Endian.big);
-    final expectedCrc = bd.getUint32(12, Endian.big);
+    if (!isFec) {
+      final total = bd.getUint16(4, Endian.big);
+      final idx = bd.getUint16(6, Endian.big);
+      final payloadLen = bd.getUint32(8, Endian.big);
+      final expectedCrc = bd.getUint32(12, Endian.big);
 
-    if (headerLen + payloadLen > frameRaw.length) return null;
+      if (headerLen + payloadLen > frameRaw.length) return null;
 
-    final payload = Uint8List.sublistView(frameRaw, headerLen, headerLen + payloadLen);
-    final actualCrc = getCrc32(payload);
+      final payload = Uint8List.sublistView(frameRaw, headerLen, headerLen + payloadLen);
+      final actualCrc = getCrc32(payload);
 
-    if (actualCrc != expectedCrc) {
-      return null; // CRC mismatch
+      if (actualCrc != expectedCrc) {
+        return null; // CRC mismatch
+      }
+
+      return FrameParseResult(
+        totalChunks: total,
+        chunkIndex: idx,
+        payload: Uint8List.fromList(payload),
+        version: version,
+        isFec: false,
+      );
+    } else {
+      final dataTotal = bd.getUint16(4, Endian.big);
+      final fecIndex = bd.getUint16(6, Endian.big);
+      final fecTotal = bd.getUint16(8, Endian.big);
+      final lastChunkLen = bd.getUint16(10, Endian.big);
+      final expectedCrc = bd.getUint32(12, Endian.big);
+
+      final payloadLen = frameRaw.length - headerLen;
+      final payload = Uint8List.sublistView(frameRaw, headerLen, headerLen + payloadLen);
+      final actualCrc = getCrc32(payload);
+
+      if (actualCrc != expectedCrc) {
+        return null; // CRC mismatch
+      }
+
+      return FrameParseResult(
+        totalChunks: dataTotal,
+        chunkIndex: fecIndex,
+        payload: Uint8List.fromList(payload),
+        version: version,
+        isFec: true,
+        fecIndex: fecIndex,
+        fecTotal: fecTotal,
+        lastChunkLen: lastChunkLen,
+      );
     }
-
-    return FrameParseResult(
-      totalChunks: total,
-      chunkIndex: idx,
-      payload: Uint8List.fromList(payload),
-      version: version,
-    );
   }
 
   /// Builds file metadata header prepended to full stream.
@@ -237,12 +318,20 @@ class FrameParseResult {
   final int chunkIndex;
   final Uint8List payload;
   final int version;
+  final bool isFec;
+  final int fecIndex;
+  final int fecTotal;
+  final int lastChunkLen;
 
   FrameParseResult({
     required this.totalChunks,
     required this.chunkIndex,
     required this.payload,
     this.version = 2,
+    this.isFec = false,
+    this.fecIndex = 0,
+    this.fecTotal = 0,
+    this.lastChunkLen = 0,
   });
 }
 

@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../widgets/dot_matrix_logo.dart';
+import '../services/sharing_service.dart';
 import 'encode_screen.dart';
 import 'decode_screen.dart';
 import 'history_screen.dart';
@@ -13,12 +16,64 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  final GlobalKey<EncodeScreenState> _encodeScreenKey = GlobalKey<EncodeScreenState>();
+  final GlobalKey<DecodeScreenState> _decodeScreenKey = GlobalKey<DecodeScreenState>();
+  StreamSubscription<List<String>>? _sharingSubscription;
 
-  final List<Widget> _screens = const [
-    EncodeScreen(),
-    DecodeScreen(),
-    HistoryScreen(),
+  late final List<Widget> _screens = [
+    EncodeScreen(key: _encodeScreenKey),
+    DecodeScreen(key: _decodeScreenKey),
+    const HistoryScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    SharingService.init();
+    _sharingSubscription = SharingService.onSharedFiles.listen(_handleSharedFiles);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initialFiles = await SharingService.getInitialSharedFiles();
+      if (initialFiles.isNotEmpty) {
+        _handleSharedFiles(initialFiles);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _sharingSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _handleSharedFiles(List<String> paths) {
+    if (paths.isEmpty) return;
+
+    final isSingleVideo = paths.length == 1 && SharingService.isVideoFile(paths.first);
+
+    if (isSingleVideo) {
+      // Auto-switch to DecodeScreen and load video for 1-click restore
+      setState(() => _currentIndex = 1);
+      final decodeState = _decodeScreenKey.currentState;
+      if (decodeState != null) {
+        decodeState.handleImportVideo(File(paths.first));
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _decodeScreenKey.currentState?.handleImportVideo(File(paths.first));
+        });
+      }
+    } else {
+      // Auto-switch to EncodeScreen and load files for 1-click generation
+      setState(() => _currentIndex = 0);
+      final encodeState = _encodeScreenKey.currentState;
+      if (encodeState != null) {
+        encodeState.handleImportPaths(paths);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _encodeScreenKey.currentState?.handleImportPaths(paths);
+        });
+      }
+    }
+  }
 
   void _showInfoSheet() {
     final theme = Theme.of(context);
@@ -34,7 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,23 +98,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: DotMatrixLogo(
-                        size: 28,
+                        size: 24,
                         color: colorScheme.primary,
                       ),
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'PixelDrop',
-                          style: theme.textTheme.titleLarge?.copyWith(
+                          style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -73,35 +128,35 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _buildInfoSection(
                   context,
                   title: '工作原理',
                   content:
-                      'PixelDrop 将二进制文件字节映射为黑白像素点阵并生成 MP4 视频。接收端导入该视频即可逆向解析提取原文件，支持离线无网传输。',
+                      'PixelDrop 将二进制文件字节映射为黑白像素点阵并生成 MP4 视频，支持系统级分享一键制作/还原。接收端导入该视频即可逆向解析提取原文件，支持离线无网传输。',
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 _buildInfoSection(
                   context,
                   title: '规格选择',
                   content:
                       '• 4x4 像素：单帧数据容量更大，生成视频更短，适合网盘中转与原画保存。\n• 8x8 像素：点阵方块更大，抗噪容错率更高，耐受社交软件二次画面压缩。',
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 _buildInfoSection(
                   context,
                   title: '数据完整性',
                   content:
-                      '内置帧级校验与 SHA-256 全量校验，文件还原后自动比对哈希值，确保文件完全一致。',
+                      '内置帧级 CRC32 校验、Cauchy FEC 纠删码抗掉帧冗余与全量 SHA-256 指纹校验，即便丢帧亦能 100% 完整复原，并自动比对哈希值确保文件完全一致。',
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 _buildInfoSection(
                   context,
                   title: '存储位置',
                   content:
                       '• 视频目录: Downloads/PixelDrop/Videos\n• 还原目录: Downloads/PixelDrop/Restored',
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 FilledButton.tonal(
                   onPressed: () => Navigator.pop(ctx),
                   child: const Text('我知道了'),

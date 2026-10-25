@@ -16,17 +16,19 @@ import '../services/history_service.dart';
 import '../services/archive_service.dart';
 
 class EncodeScreen extends StatefulWidget {
-  const EncodeScreen({super.key});
+  final List<String>? initialImportPaths;
+  const EncodeScreen({super.key, this.initialImportPaths});
 
   @override
-  State<EncodeScreen> createState() => _EncodeScreenState();
+  State<EncodeScreen> createState() => EncodeScreenState();
 }
 
-class _EncodeScreenState extends State<EncodeScreen> {
+class EncodeScreenState extends State<EncodeScreen> {
   SelectedInput? _selectedInput;
   int _blockSize = 4; // 2, 4, or 8
   int _resolution = 1080; // 1080 or 720
   int _holdFrames = 1; // 1 (default fast transfer) or 2 (noise tolerant)
+  int _fecRedundancy = 20; // 0 (none), 10, 20 (recommended), 30 (high resilience)
   int _workerThreads = 0; // 0 = 自动 (平台自适应)
   bool _enablePlatformCompat = true; // 注入 AAC 静音轨与 FastStart 平台免压增强
   bool _isEncoding = false;
@@ -39,6 +41,21 @@ class _EncodeScreenState extends State<EncodeScreen> {
   int get _cpuCount => Platform.numberOfProcessors;
   int get _optimalWorkers => PixelEncoderService.getOptimalWorkerCount();
   int get _activeWorkers => _workerThreads > 0 ? _workerThreads : _optimalWorkers;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialImportPaths != null && widget.initialImportPaths!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _processSelectedPaths(widget.initialImportPaths!);
+      });
+    }
+  }
+
+  /// Public handler for external system shares and drag-and-drop
+  void handleImportPaths(List<String> paths) {
+    _processSelectedPaths(paths);
+  }
 
   void _pickFiles() async {
     try {
@@ -177,6 +194,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
         fps: 30,
         holdFrames: _holdFrames,
         crf: PixelEncoderService.defaultCrf,
+        fecPercent: _fecRedundancy,
         workerCount: _workerThreads > 0 ? _workerThreads : null,
         includeSilentAudio: _enablePlatformCompat,
         onProgress: (p, status) {
@@ -282,11 +300,11 @@ class _EncodeScreenState extends State<EncodeScreen> {
                   children: [
                     // 1. File Picker / Selected File Card
                     _buildFileSection(context),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
                     // 2. Preset Specification
                     _buildPresetSection(context),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
 
                     // 3. Action Button
                     FilledButton.icon(
@@ -371,23 +389,23 @@ class _EncodeScreenState extends State<EncodeScreen> {
     if (_selectedInput == null) {
       return Card(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           child: Column(
             children: [
               Container(
-                width: 56,
-                height: 56,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.drive_folder_upload_rounded,
-                  size: 28,
+                  size: 24,
                   color: colorScheme.primary,
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 8),
               Text(
                 '选择待转换文件',
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -404,7 +422,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Wrap(
                 alignment: WrapAlignment.center,
                 spacing: 12,
@@ -581,7 +599,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -591,7 +609,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<int>(
@@ -619,7 +637,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                     : (selection) => setState(() => _blockSize = selection.first),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Text(
               _blockSize == 2
                   ? '2x2 规格（极速高密）：单帧约 ${_resolution == 1080 ? '194' : '86'} KB，视频体积减少 ~60%，耗时骤降'
@@ -630,14 +648,14 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Text(
               '视频分辨率',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<int>(
@@ -660,7 +678,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                     : (selection) => setState(() => _resolution = selection.first),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Text(
               _resolution == 1080
                   ? '1080p (1920x1080)：全高清画质，单帧容量 ${_blockSize == 2 ? '约 194 KB' : _blockSize == 4 ? '约 47 KB' : '约 12 KB'}'
@@ -669,14 +687,14 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Text(
               '帧留存率 (Hold Frames)',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
               child: SegmentedButton<int>(
@@ -699,7 +717,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                     : (selection) => setState(() => _holdFrames = selection.first),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Text(
               _holdFrames == 1
                   ? '1 帧：点阵单帧传输，体积最小速度最快（推荐直接传文件）'
@@ -708,12 +726,65 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
+            Text(
+              '抗掉帧容灾 (帧级 FEC 纠删码)',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<int>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment<int>(
+                    value: 0,
+                    icon: Icon(Icons.flash_off_rounded),
+                    label: Text('关闭 (0%)'),
+                  ),
+                  ButtonSegment<int>(
+                    value: 10,
+                    icon: Icon(Icons.shield_outlined),
+                    label: Text('轻量 (10%)'),
+                  ),
+                  ButtonSegment<int>(
+                    value: 20,
+                    icon: Icon(Icons.verified_user_rounded),
+                    label: Text('标准 (20%)'),
+                  ),
+                  ButtonSegment<int>(
+                    value: 30,
+                    icon: Icon(Icons.health_and_safety_rounded),
+                    label: Text('强抗损 (30%)'),
+                  ),
+                ],
+                selected: {_fecRedundancy},
+                onSelectionChanged: _isEncoding
+                    ? null
+                    : (selection) => setState(() => _fecRedundancy = selection.first),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _fecRedundancy == 0
+                  ? '0% 容灾：仅传输原数据帧，无额外体积开销（适合无丢包的高速局域网直接传输）'
+                  : _fecRedundancy == 10
+                      ? '10% 容灾：增加约 10% 纠删码校验帧，可抗偶发 1~2 帧丢失或播放器首尾截断'
+                      : _fecRedundancy == 20
+                          ? '20% 容灾（默认推荐）：即使视频随机丢失 20% 关键帧，依然能 100% 完整复原原文件并保证 SHA-256 吻合'
+                          : '30% 容灾（强抗损）：增加约 30% 纠删码校验帧，耐受视频二次转码抽帧、高丢包网络传输及屏幕翻拍',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.spaceBetween,
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 8,
-              runSpacing: 6,
+              runSpacing: 4,
               children: [
                 Text(
                   '多核并行加速',
@@ -754,10 +825,10 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Wrap(
               spacing: 8,
-              runSpacing: 8,
+              runSpacing: 6,
               children: [
                 ChoiceChip(
                   avatar: const Icon(Icons.auto_mode_rounded, size: 16),
@@ -801,7 +872,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               _isDesktop
                   ? 'PC 平台专属调优：当前设备共有 $_cpuCount 个 CPU 逻辑核心，已分配 $_activeWorkers 个 Isolate 线程并行渲染点阵帧，充分释放硬件多核性能。'
@@ -810,7 +881,7 @@ class _EncodeScreenState extends State<EncodeScreen> {
                 color: colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             Text(
               '平台免压与音轨兼容',
               style: theme.textTheme.titleSmall?.copyWith(

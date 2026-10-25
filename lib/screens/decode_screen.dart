@@ -15,13 +15,14 @@ import '../services/archive_service.dart';
 
 class DecodeScreen extends StatefulWidget {
   final DecodeResult? initialResult;
-  const DecodeScreen({super.key, this.initialResult});
+  final File? initialVideoFile;
+  const DecodeScreen({super.key, this.initialResult, this.initialVideoFile});
 
   @override
-  State<DecodeScreen> createState() => _DecodeScreenState();
+  State<DecodeScreen> createState() => DecodeScreenState();
 }
 
-class _DecodeScreenState extends State<DecodeScreen> {
+class DecodeScreenState extends State<DecodeScreen> {
   File? _selectedVideo;
   int _blockSize = 0; // 0 = 自动识别, 2, 4, or 8
   bool _isDecoding = false;
@@ -44,6 +45,25 @@ class _DecodeScreenState extends State<DecodeScreen> {
     super.initState();
     if (widget.initialResult != null) {
       _result = widget.initialResult;
+    } else if (widget.initialVideoFile != null) {
+      _selectedVideo = widget.initialVideoFile;
+    }
+  }
+
+  /// Public handler to load a shared or selected video
+  void handleImportVideo(File videoFile) {
+    setState(() {
+      _selectedVideo = videoFile;
+      _result = null;
+      _progress = 0.0;
+      _statusText = '';
+      _extractedDirPath = null;
+    });
+    if (mounted) {
+      final fileName = videoFile.path.split(Platform.pathSeparator).last;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('已载入待还原视频: $fileName')),
+      );
     }
   }
 
@@ -650,11 +670,40 @@ class _DecodeScreenState extends State<DecodeScreen> {
                 ),
               ],
             ),
+            if (_result!.fecRecoveredCount > 0) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.health_and_safety_rounded, color: Colors.green.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '抗掉帧 FEC 纠删码生效：成功恢复 ${_result!.fecRecoveredCount} 个丢失帧并 100% 完整复原',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.green.shade800,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             const Divider(height: 1),
             const SizedBox(height: 14),
             _buildDetailRow(context, '文件名', _result!.filename),
             _buildDetailRow(context, '点阵规格', '${_result!.detectedBlockSize}x${_result!.detectedBlockSize} 像素'),
+            if (_result!.fecRecoveredCount > 0)
+              _buildDetailRow(context, '容灾修复', '已成功复原 ${_result!.fecRecoveredCount} 个丢帧 (FEC)'),
             _buildDetailRow(context, '文件大小', _formatBytes(_result!.fileSize)),
             _buildDetailRow(context, '保存路径', _result!.restoredFile.path, isMuted: true),
             const SizedBox(height: 14),
