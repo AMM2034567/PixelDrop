@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/AMM2034567/PixelDrop/releases/latest">
-    <img src="https://img.shields.io/badge/Release-v0.6.0--beta-blue.svg?style=flat-square" alt="Latest Release" />
+    <img src="https://img.shields.io/badge/Release-v1.0.0-blue.svg?style=flat-square" alt="Latest Release" />
   </a>
   <a href="https://github.com/AMM2034567/PixelDrop/actions/workflows/build.yml">
     <img src="https://img.shields.io/github/actions/workflow/status/AMM2034567/PixelDrop/build.yml?branch=main&style=flat-square&label=CI%20Build" alt="CI Status" />
@@ -126,7 +126,7 @@ flowchart LR
 
 | 平台 / 系统 | 推荐下载文件 | 说明 |
 | :--- | :--- | :--- |
-| 🪟 **Windows (64位)** | **`PixelDrop-Windows-x64-v0.6.0-beta.zip`** | 绿色免安装版，内置极速 FFmpeg 视频引擎，解压即可运行 |
+| 🪟 **Windows (64位)** | **`PixelDrop-Windows-x64-v1.0.0.zip`** | 绿色免安装版，内置极速 FFmpeg 视频引擎，解压即可运行 |
 | 🤖 **Android (主流机型)** | **`app-arm64-v8a-release.apk`** | 适用于近几年发布的绝大多数 Android 智能手机 |
 | 🤖 **Android (老旧机型)** | **`app-armeabi-v7a-release.apk`** | 适用于 32 位老旧 Android 移动设备 |
 | 🐧 **Linux** | *规划待动工 (免安装 tar.gz 便携包)* | 详见 [docs/LINUX_TODO.md](docs/LINUX_TODO.md) |

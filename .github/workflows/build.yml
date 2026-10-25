@@ -141,13 +141,13 @@ jobs:
           Set-Content -Path "$pkgDir\README.txt" -Value $readmeLines -Encoding UTF8
 
           # Create distribution zip
-          Compress-Archive -Path $pkgDir -DestinationPath "PixelDrop-Windows-x64-v0.6.0-beta.zip" -CompressionLevel Optimal
+          Compress-Archive -Path $pkgDir -DestinationPath "PixelDrop-Windows-x64-v1.0.0.zip" -CompressionLevel Optimal
 
       - name: Upload Windows Portable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PixelDrop-Windows-x64-v0.6.0-beta.zip
-          path: PixelDrop-Windows-x64-v0.6.0-beta.zip
+          name: PixelDrop-Windows-x64-v1.0.0.zip
+          path: PixelDrop-Windows-x64-v1.0.0.zip
 
   release:
     name: Publish Multi-Platform GitHub Release
@@ -171,31 +171,42 @@ jobs:
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v0.6.0-beta
-          name: "PixelDrop v0.6.0-beta (Windows 桌面端 & Android 移动端测试版)"
+          tag_name: v1.0.0
+          name: "PixelDrop v1.0.0 正式发布版 (全平台首发发布)"
           draft: false
-          prerelease: true
+          prerelease: false
           body: |
-            ## 🧪 PixelDrop v0.6.0-beta 全平台测试版：Windows 桌面端 + Android 移动端双端发布！
+            ## 🚀 PixelDrop v1.0.0 正式发布版：跨平台全要素光学文件传输系统隆重登场！
 
-            PixelDrop 现已正式迈入全平台阶段！无需数据线、无需局域网配对，即可在电脑与手机之间通过点阵视频自由传递任意格式文件，比特级 100% SHA-256 位精确无损还原。
-
-            > 📢 **测试版说明**：本项目当前处于私有验证测试阶段（v0.x），后续待功能完备后将正式开源并发布 v1.0.0 正式版。
+            无需数据线、无需配对局域网、跨系统物理隔离！在 Windows 电脑与 Android 手机之间通过像素矩阵视频自由传递任意格式文件，比特级 100% SHA-256 位精确无损还原。
 
             ---
 
-            ### 💻 Windows 桌面版全新特性
-            - **原生免安装绿色便携包**：内置极速 FFmpeg 视频引擎与全部动态运行库，解压即用，无需配置环境变量。
-            - **文件直接拖拽（Drag & Drop）**：直接从资源管理器将文件或视频拖拽进窗口，智能识别与文件夹安全过滤。
-            - **精致紧凑 MD3 桌面布局**：基于 Material Design 3 的优雅深板岩灰蓝（Slate Charcoal）质感，配备高质感 `NavigationRail` 侧边栏与紧凑黄金比例窗口（860 × 620），高分屏自适应缩放无虚化。
-            - **系统级资源管理器联动**：生成视频或还原文件后，支持一键在 Windows Explorer 中自动定位并高亮选中目标文件。
-            - **专属 24 点阵矢量图标**：完美绑定 Windows 任务栏、窗口标题栏与 Alt+Tab 多任务切换的高清多尺寸 ICO 图标。
+            ### 🌟 v1.0.0 重磅里程碑特性一览
 
-            ### 📱 Android 移动版核心体验
-            - **1:1 复刻专属 24 像素同心点阵图标**：适配标准方圆桌面图标与原生圆形图标，通知栏配备纯白镂空剪影图标。
-            - **原生前台服务与硬件唤醒锁保活**：锁屏或切换其他应用时 CPU 全速运行不中断，拒绝系统杀后台。
-            - **极速 Raw 灰度直读解码**：视频解析毫秒级，数千帧仅需数秒。
-            - **系统下载区自动归档**：自动归纳至手机公共下载目录 `Download/PixelDrop`。
+            #### 1. 🎨 RGB 8 色高密编码与黑白双协议
+            - **RGB 8 色协议 (`PD02`)**：单像素点携带 3 个比特数据（8 种离散基色），视频体积大幅减小 **~60%**，生成速度翻倍；
+            - **经典黑白协议 (`PXL1`)**：1 比特/像素，极端翻拍环境下的高稳健性回退。
+
+            #### 2. 🛡️ Cauchy Reed-Solomon 帧级纠删码 (FEC 掉帧容灾)
+            - 采用基于伽罗瓦域 $GF(2^8)$ 的 Cauchy Reed-Solomon 算法，支持可配置的帧级冗余度（10% ~ 30%）；
+            - 视频即使被平台或播放器截断首尾、或因网络抽帧丢弃部分关键帧，**只要有效帧数达标，即可 100% 逆向重构缺失画面并精确还原**。
+
+            #### 3. 📦 多文件拖拽与文件夹一键归档
+            - **流式打包**：直接将多个散落文件或嵌套文件夹拖入窗口，后台基于微任务自动切片压缩为 ZIP 视频流，界面毫无卡顿；
+            - **智能解压**：还原后支持一键解压，自动识别并消除冗余多层同名父目录，内置严密的 **Zip-Slip 目录穿越安全防御**。
+
+            #### 4. 📱 Android 移动端系统级极速交互
+            - 深度集成 Android 原生 **`ACTION_SEND` / `ACTION_SEND_MULTIPLE`**：在手机文件管理器或相册中长按文件/视频，点击「分享到 PixelDrop」即可直接唤起并自动装配任务；
+            - 原生前台服务（Foreground Service）配合 **`PARTIAL_WAKE_LOCK`**，切后台、刷其他软件或锁屏息屏状态下 CPU 满速稳定运行，拒绝系统杀后台。
+
+            #### 5. 🪟 Windows 桌面端绿色免安装便携体验
+            - 内置原生极速 FFmpeg 视频处理引擎与全部动态运行库，解压即可运行；
+            - 支持全窗口直接拖拽识别，还原后一键在资源管理器中定位高亮选中目标文件。
+
+            #### 6. 🌐 社交与短视频平台免压兼容
+            - **轻量静音音轨注入**：针对微信视频号、抖音、B站等对纯无声 MP4 的上传拦截或暴力重采样问题，自动注入一条 32kbps AAC 无损静音流（1分钟视频仅增约 3~4 KB）；
+            - **Web 快速启动 (`+faststart`)**：自动将 `moov atom` 元数据挪至 MP4 最前部，支持网盘与网页端秒开预览与流式秒读。
 
             ---
 
@@ -203,9 +214,10 @@ jobs:
 
             | 平台 / 系统 | 推荐下载文件 | 说明 |
             | :--- | :--- | :--- |
-            | 🪟 **Windows 64位** | **`PixelDrop-Windows-x64-v0.6.0-beta.zip`** | 绿色免安装测试版，解压后双击 `pixel_drop.exe` 即开即用 |
-            | 🤖 **Android (推荐)** | **`app-arm64-v8a-release.apk`** | 适用于市面上绝大多数 64 位安卓手机 |
+            | 🪟 **Windows 64位** | **`PixelDrop-Windows-x64-v1.0.0.zip`** | 绿色免安装正式版，内置极速 FFmpeg 引擎，解压双击 `pixel_drop.exe` 即开即用 |
+            | 🤖 **Android (推荐)** | **`app-arm64-v8a-release.apk`** | 适用于近几年发布的绝大多数 64 位安卓智能手机 |
             | 🤖 **Android (老旧机型)** | **`app-armeabi-v7a-release.apk`** | 适用于 32 位老旧安卓设备 |
+            | 🐧 **Linux** | *规划待动工 (免安装 tar.gz 便携包)* | 详见仓库文档 `docs/LINUX_TODO.md` |
           files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
